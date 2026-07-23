@@ -1,6 +1,8 @@
 name: Build Mod
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
 
 jobs:
   buildJar:
@@ -15,14 +17,31 @@ jobs:
         distribution: 'temurin'
         java-version: 17
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
+    - name: Set up Android SDK build tools
+      run: |
+        echo "ANDROID_HOME=$ANDROID_HOME"
+        echo "Build tools:" && ls $ANDROID_HOME/build-tools/ | sort -V | tail -5
+        echo "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)" >> $GITHUB_PATH
 
-    - name: Build mod jar
+    - name: Build mod jar (Desktop + Android DEX)
       run: |
         chmod +x ./gradlew
         ./gradlew deploy
+
+    - name: Verify classes.dex exists in jar
+      run: |
+        jar tf build/libs/MapGenerator.jar | grep "classes.dex" && echo "Android DEX found!" || echo "WARNING: No classes.dex found!"
+
+    - name: Copy JAR to repo root and commit
+      run: |
         cp build/libs/MapGenerator.jar ./MapGenerator.jar
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add MapGenerator.jar
+        git diff --staged --quiet || git commit -m "ci: update MapGenerator.jar with Android DEX bytecode [skip ci]"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload built jar file
       uses: actions/upload-artifact@v4
