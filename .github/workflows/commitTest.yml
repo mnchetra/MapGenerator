@@ -8,15 +8,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: 17
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
     - name: Build mod jar
       run: |
         chmod +x ./gradlew
-        ./gradlew jar
+        ./gradlew deploy
+        cp build/libs/MapGenerator.jar ./MapGenerator.jar
+
     - name: Upload built jar file
       uses: actions/upload-artifact@v4
       with:
