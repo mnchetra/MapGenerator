@@ -66,14 +66,19 @@ tasks.register('jarAndroid'){
             return
         }
 
+        def buildTools = new File("$sdkRoot/build-tools/").listFiles()?.sort()?.reverse()?.find{ f -> new File(f, isWindows ? "d8.bat" : "d8").exists() }
+        def d8Exec = buildTools ? new File(buildTools, isWindows ? "d8.bat" : "d8").absolutePath : (isWindows ? "d8.bat" : "d8")
+
         //collect dependencies needed for desugaring
-        def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{ "--classpath $it.path" }.join(" ")
+        def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{ "--classpath \"$it.path\"" }.join(" ")
 
-        def d8 = isWindows ? "d8.bat" : "d8"
-
-        //dex and desugar files - this requires d8 in your PATH
-        "$d8 $dependencies --min-api 14 --output ${projectName}Android.jar ${projectName}Desktop.jar"
-                .execute(null, new File("build/libs")).waitForProcessOutput(System.out, System.err)
+        println "Running d8 desugaring via $d8Exec..."
+        def command = "\"$d8Exec\" $dependencies --min-api 14 --output ${projectName}Android.jar ${projectName}Desktop.jar"
+        def proc = command.execute(null, new File("build/libs"))
+        proc.waitForProcessOutput(System.out, System.err)
+        if (proc.exitValue() != 0) {
+            throw new GradleException("d8 execution failed with exit code " + proc.exitValue())
+        }
     }
 }
 task runTestMap(type: JavaExec) {
