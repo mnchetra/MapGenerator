@@ -5,7 +5,7 @@
   "main": "mapgen.MapGeneratorMod",
   "description": "A mod that adds a procedurally generated map option with adjustable game modes including an expanding Tower Defense mode!",
   "version": "1.0",
-  "minGameVersion": "146",
+  "minGameVersion": "159",
   "java": true,
   "hidden": false,
   "mobile": true
