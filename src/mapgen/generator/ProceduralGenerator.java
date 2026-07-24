@@ -18,13 +18,26 @@ import mindustry.world.blocks.logic.MessageBlock.MessageBuild;
 
 public class ProceduralGenerator {
     public static boolean isTowerDefense = false;
+    public static boolean isEndlessTD = false;
     public static int tdStage = 1;
     public static int tdSpawnX = 0;
     public static int tdSpawnY = 0;
     private static int[][] tdStageWaypoints = new int[5][6]; // [stageIndex][w1, w2, w3, turn1Y, turn2Y, patternType]
 
     public enum GameMode {
-        Attack, Survival, Sandbox, TowerDefense
+        Attack, Survival, Sandbox, TowerDefenseLimit, TowerDefenseEndless;
+
+        public boolean isTD() {
+            return this == TowerDefenseLimit || this == TowerDefenseEndless;
+        }
+
+        public String displayName() {
+            switch (this) {
+                case TowerDefenseLimit: return "Tower Defense (Limit)";
+                case TowerDefenseEndless: return "Tower Defense (Endless)";
+                default: return name();
+            }
+        }
     }
 
     public enum Difficulty {
@@ -104,8 +117,9 @@ public class ProceduralGenerator {
                 final int fEx1 = ex1, fEy1 = ey1, fEx2 = ex2, fEy2 = ey2;
                 final int fSx = sx, fSy = sy;
 
-                if (mode == GameMode.TowerDefense) {
+                if (mode.isTD()) {
                     isTowerDefense = true;
+                    isEndlessTD = (mode == GameMode.TowerDefenseEndless);
                     tdStage = 1;
                     int mapWidth = 100;
                     int mapHeight = 420;
@@ -115,6 +129,7 @@ public class ProceduralGenerator {
                     });
                 } else {
                     isTowerDefense = false;
+                    isEndlessTD = false;
                     Vars.world.loadGenerator(size, size, tiles -> {
                         generateTerrain(tiles, size, mode, difficulty, offsetX, offsetY, cx, cy, fEx1, fEy1, fEx2, fEy2, fSx, fSy);
                         
@@ -143,8 +158,12 @@ public class ProceduralGenerator {
                 Vars.state.set(mindustry.core.GameState.State.playing);
                 arc.Events.fire(mindustry.game.EventType.Trigger.newGame);
 
-                if (mode == GameMode.TowerDefense) {
-                    showToast("[gold]TOWER DEFENSE MODE![]\n[accent]Survive to Wave 15, 35, 60, 90 to expand the map![]");
+                if (mode.isTD()) {
+                    if (isEndlessTD) {
+                        showToast("[gold]TOWER DEFENSE (ENDLESS)![]\n[accent]Survive endless waves! Map expands up to Wave 90![]");
+                    } else {
+                        showToast("[gold]TOWER DEFENSE (LIMIT)![]\n[accent]Survive to Wave 100 to WIN! Map expands up to Wave 90![]");
+                    }
                 }
             });
             
@@ -217,7 +236,7 @@ public class ProceduralGenerator {
             }
         }
 
-        if (mode == GameMode.TowerDefense) {
+        if (mode.isTD()) {
             for (int x = 0; x < size; x++) {
                 for (int y = 0; y < size; y++) {
                     Tile t = tiles.getn(x, y);
@@ -246,8 +265,8 @@ public class ProceduralGenerator {
                 
                 carveOrganicPath(tiles, cx, cy, midX2, midY2, ex2, ey2, 5, offsetX, offsetY);
             }
-        } else if (mode == GameMode.Survival || mode == GameMode.TowerDefense) {
-            if (mode == GameMode.TowerDefense) {
+        } else if (mode == GameMode.Survival || mode.isTD()) {
+            if (mode.isTD()) {
                 // Control point creates a nice L-shaped sweeping curve
                 int controlX = sx;
                 int controlY = cy;
@@ -327,7 +346,7 @@ public class ProceduralGenerator {
                     }
                 }
             }
-        } else if (mode == GameMode.Survival || mode == GameMode.TowerDefense) {
+        } else if (mode == GameMode.Survival || mode.isTD()) {
             clearArea(tiles, sx, sy, 10);
             tiles.getn(sx, sy).setOverlay(Blocks.spawn);
         }
@@ -425,7 +444,7 @@ public class ProceduralGenerator {
     private static void setupRules(Rules rules, GameMode mode, Difficulty difficulty) {
         rules.waves = true;
         rules.waveTimer = true;
-        rules.winWave = 50;
+        rules.winWave = mode == GameMode.TowerDefenseLimit ? 100 : 50;
 
         switch (mode) {
             case Attack:
@@ -437,8 +456,9 @@ public class ProceduralGenerator {
                 rules.waveTimer = false;
                 rules.infiniteResources = true;
                 break;
-            case TowerDefense:
-                rules.waveSpacing = 3600f;
+            case TowerDefenseLimit:
+            case TowerDefenseEndless:
+                rules.waveSpacing = 3000f; // 50 seconds per wave
                 break;
             case Survival:
                 rules.waveSpacing = 7200f;
@@ -447,31 +467,39 @@ public class ProceduralGenerator {
 
         switch (difficulty) {
             case Easy:
-                rules.dropZoneRadius = mode == GameMode.TowerDefense ? 25f : 300f;
+                rules.dropZoneRadius = mode.isTD() ? 25f : 300f;
                 rules.buildCostMultiplier = 0.5f;
                 rules.blockHealthMultiplier = 1.5f;
                 break;
             case Normal:
-                rules.dropZoneRadius = mode == GameMode.TowerDefense ? 25f : 150f;
+                rules.dropZoneRadius = mode.isTD() ? 25f : 150f;
                 break;
             case Hard:
-                rules.dropZoneRadius = mode == GameMode.TowerDefense ? 25f : 100f;
+                rules.dropZoneRadius = mode.isTD() ? 25f : 100f;
                 rules.buildCostMultiplier = 1.5f;
                 rules.blockHealthMultiplier = 0.8f;
                 break;
         }
 
-        if (mode == GameMode.TowerDefense) {
+        if (mode.isTD()) {
             rules.dropZoneRadius = 25f; // Small, clean spawn circle around spawn point
             rules.teams.get(Team.crux).unitDamageMultiplier = 1.0f; // Enemies deal damage to Core!
             rules.teams.get(Team.crux).unitHealthMultiplier = 1.0f;
         }
 
-        if (mode == GameMode.TowerDefense) {
+        if (mode.isTD()) {
             rules.waves = true;
             rules.waveTimer = true;
             rules.waveSpacing = 3000f; // 50 seconds per wave
             rules.spawns.clear();
+
+            if (mode == GameMode.TowerDefenseLimit) {
+                rules.winWave = 100;
+            } else {
+                rules.winWave = 0; // Endless waves!
+            }
+
+            int stage5End = (mode == GameMode.TowerDefenseLimit) ? 100 : 99999;
 
             // Stage 1 (Easy: Waves 1-15) - T1 Crawlers
             SpawnGroup g1 = new SpawnGroup(UnitTypes.crawler);
@@ -496,22 +524,22 @@ public class ProceduralGenerator {
             g5.begin = 36; g5.end = 60; g5.unitAmount = 3; g5.unitScaling = 1f;
             rules.spawns.add(g5);
 
-            // Stage 4 (Extreme: Waves 61-90) - T3 & T4 Crawlers (Arkyid)
+            // Stage 4 (Extreme: Waves 61-89) - T3 & T4 Crawlers (Arkyid)
             SpawnGroup g6 = new SpawnGroup(UnitTypes.spiroct);
-            g6.begin = 61; g6.end = 90; g6.unitAmount = 6; g6.unitScaling = 1.5f;
+            g6.begin = 61; g6.end = 89; g6.unitAmount = 6; g6.unitScaling = 1.5f;
             rules.spawns.add(g6);
 
             SpawnGroup g7 = new SpawnGroup(UnitTypes.arkyid);
-            g7.begin = 61; g7.end = 90; g7.unitAmount = 2; g7.unitScaling = 0.8f;
+            g7.begin = 61; g7.end = 89; g7.unitAmount = 2; g7.unitScaling = 0.8f;
             rules.spawns.add(g7);
 
-            // Stage 5 (Eradication: Waves 91+) - T4 & T5 Crawlers (Toxopid)
+            // Stage 5 (Eradication: Waves 90+) - T4 & T5 Crawlers (Toxopid)
             SpawnGroup g8 = new SpawnGroup(UnitTypes.arkyid);
-            g8.begin = 91; g8.end = 200; g8.unitAmount = 4; g8.unitScaling = 1.2f;
+            g8.begin = 90; g8.end = stage5End; g8.unitAmount = 4; g8.unitScaling = 1.2f;
             rules.spawns.add(g8);
 
             SpawnGroup g9 = new SpawnGroup(UnitTypes.toxopid);
-            g9.begin = 95; g9.end = 200; g9.unitAmount = 1; g9.unitScaling = 0.5f;
+            g9.begin = 90; g9.end = stage5End; g9.unitAmount = 1; g9.unitScaling = 0.5f;
             rules.spawns.add(g9);
         } else if (rules.waves) {
             rules.spawns.clear();
@@ -649,11 +677,29 @@ public class ProceduralGenerator {
         placeBlock(tiles, 50, 16, Blocks.coreShard, Team.sharded);
 
         // Core Objective Message Block
-        placeMessageBlock(tiles, 50, 22, "[gold]WELCOME TO TOWER DEFENSE![]\n\n[accent]MAP EXPANSION GOAL:[]\nSurvive enemy waves to expand the map!\n- Wave 15 -> Stage 2 (Normal)\n- Wave 35 -> Stage 3 (Hard)\n- Wave 60 -> Stage 4 (Extreme)\n- Wave 90 -> Stage 5 (Eradication)\n\nBuild turrets on marked platforms along the track!");
+        if (isEndlessTD) {
+            placeMessageBlock(tiles, 50, 22, "[gold]WELCOME TO TOWER DEFENSE (ENDLESS)![]\n\n[accent]MAP EXPANSION GOAL:[]\nSurvive enemy waves to expand the map!\n- Wave 15 -> Stage 2 (Normal)\n- Wave 35 -> Stage 3 (Hard)\n- Wave 60 -> Stage 4 (Extreme)\n- Wave 90 -> Stage 5 (Eradication)\n- Wave 90+ -> Endless Scaling!\n\nBuild turrets on marked platforms along the track!");
+        } else {
+            placeMessageBlock(tiles, 50, 22, "[gold]WELCOME TO TOWER DEFENSE (LIMIT)![]\n\n[accent]MAP EXPANSION GOAL:[]\nSurvive to Wave 100 to WIN!\n- Wave 15 -> Stage 2 (Normal)\n- Wave 35 -> Stage 3 (Hard)\n- Wave 60 -> Stage 4 (Extreme)\n- Wave 90 -> Stage 5 (Eradication)\n- Wave 100 -> VICTORY!\n\nBuild turrets on marked platforms along the track!");
+        }
 
         tdSpawnX = tdStageWaypoints[0][2];
         tdSpawnY = 32 + 75 - 3; // 104 (Exact top end of Stage 1 track!)
         tiles.getn(tdSpawnX, tdSpawnY).setOverlay(Blocks.spawn);
+    }
+
+    private static void carveCorner(Tiles tiles, int cx, int cy, int radius) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                if (dx * dx + dy * dy <= radius * radius) {
+                    Tile t = tiles.get(cx + dx, cy + dy);
+                    if (t != null) {
+                        t.setBlock(Blocks.air);
+                        t.setFloor(Blocks.darkPanel2.asFloor());
+                    }
+                }
+            }
+        }
     }
 
     private static void carveStageLayout(Tiles tiles, int stageNum) {
@@ -695,6 +741,26 @@ public class ProceduralGenerator {
             drawTrackLine(tiles, w1, yBase, w1, turn1Y, 6);
             drawTrackLine(tiles, w1, turn1Y, w3, turn1Y, 6);
             drawTrackLine(tiles, w3, turn1Y, w3, endY, 6);
+        }
+
+        // Smooth and widen track turn corners
+        carveCorner(tiles, startX, yBase, 4);
+        if (pattern == 0) {
+            carveCorner(tiles, w1, yBase, 4);
+            carveCorner(tiles, w1, turn1Y, 4);
+            carveCorner(tiles, w2, turn1Y, 4);
+            carveCorner(tiles, w2, turn2Y, 4);
+            carveCorner(tiles, w3, turn2Y, 4);
+        } else if (pattern == 1) {
+            carveCorner(tiles, w1, yBase, 4);
+            carveCorner(tiles, w1, turn2Y, 4);
+            carveCorner(tiles, w3, turn2Y, 4);
+        } else if (pattern == 2) {
+            carveCorner(tiles, w2, yBase, 4);
+        } else if (pattern == 3) {
+            carveCorner(tiles, w1, yBase, 4);
+            carveCorner(tiles, w1, turn1Y, 4);
+            carveCorner(tiles, w3, turn1Y, 4);
         }
 
         // Carve Wide 10x10 Spawn Chamber at the top end of the stage track so units (T1-T5) never get stuck in walls!

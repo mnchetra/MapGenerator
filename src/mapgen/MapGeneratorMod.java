@@ -11,6 +11,9 @@ import mindustry.*;
 import mapgen.ui.GeneratorDialog;
 import mapgen.generator.ProceduralGenerator;
 
+import arc.math.Mathf;
+import mindustry.content.Blocks;
+
 public class MapGeneratorMod extends Mod {
     private GeneratorDialog dialog;
 
@@ -55,9 +58,36 @@ public class MapGeneratorMod extends Mod {
                         if (u != null && u.team == mindustry.game.Team.crux) {
                             mindustry.world.Tile tile = u.tileOn();
                             if (tile != null && tile.block().solid) {
-                                // If enemy unit gets wedged in a wall block, push it downward onto the track!
-                                u.vel.set(0f, -2f);
-                                u.trns(0f, -8f);
+                                // Find nearest non-solid tile to gently unstick the unit towards track floor
+                                mindustry.world.Tile bestTile = null;
+                                float bestDstSq = Float.MAX_VALUE;
+                                int ux = tile.x;
+                                int uy = tile.y;
+                                
+                                for (int dx = -3; dx <= 3; dx++) {
+                                    for (int dy = -3; dy <= 3; dy++) {
+                                        mindustry.world.Tile near = Vars.world.tile(ux + dx, uy + dy);
+                                        if (near != null && !near.block().solid) {
+                                            float dstSq = dx * dx + dy * dy;
+                                            if (near.floor() == Blocks.darkPanel2.asFloor()) {
+                                                dstSq -= 5f; // Strongly prefer track floor
+                                            }
+                                            if (dstSq < bestDstSq) {
+                                                bestDstSq = dstSq;
+                                                bestTile = near;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if (bestTile != null) {
+                                    float dx = bestTile.worldx() - u.x;
+                                    float dy = bestTile.worldy() - u.y;
+                                    float len = Mathf.len(dx, dy);
+                                    if (len > 0.001f) {
+                                        u.trns((dx / len) * 3f, (dy / len) * 3f);
+                                    }
+                                }
                             }
                         }
                     });

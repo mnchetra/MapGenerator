@@ -30,11 +30,11 @@ public class GeneratorDialog extends BaseDialog {
             t.add("Game Mode:").left().row();
             for (GameMode mode : GameMode.values()) {
                 t.button(b -> {
-                    b.add(mode.name());
+                    b.add(mode.displayName());
                 }, mindustry.ui.Styles.defaultb, () -> {
                     selectedMode = mode;
                     setup();
-                }).width(200f).color(selectedMode == mode ? arc.graphics.Color.acid : arc.graphics.Color.white).row();
+                }).width(240f).color(selectedMode == mode ? arc.graphics.Color.acid : arc.graphics.Color.white).row();
             }
 
             t.add("Difficulty:").left().padTop(20f).row();
