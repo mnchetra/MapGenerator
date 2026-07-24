@@ -44,15 +44,6 @@ Procedurally generates varied biomes using multi-octave Simplex noise:
 
 ---
 
-### Mechanics & Quality of Life Improvements
-
-* **Smart Vector Auto-Unstick**: Automatically detects units wedged near wall corners and gently pushes them back onto the track floor (no stuck T2/spider units!).
-* **Smooth Corner Carving**: All 90-degree track turns are carved with rounded clearance zones to ensure smooth pathfinding for T1–T5 crawler units (Atrax, Spiroct, Arkyid, Toxopid).
-* **Core-Only Protection**: In Tower Defense mode, player structures built on platforms are non-targetable by enemy crawlers, focusing enemy aggression directly on reaching the Core.
-* **Auto-Powered Enemy Base**: Automatically links power nodes and surge towers during generation so enemy base defenses function immediately.
-
----
-
 ## How to Play
 
 1. In the Mindustry Main Menu, click the **Map Gen** button in the bottom-left corner.
