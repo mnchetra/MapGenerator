@@ -73,8 +73,8 @@ tasks.register('jarAndroid'){
         def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{ "--classpath \"$it.path\"" }.join(" ")
 
         println "Running d8 desugaring via $d8Exec..."
-        def command = "\"$d8Exec\" $dependencies --min-api 14 --output ${projectName}Android.jar ${projectName}Desktop.jar"
-        def proc = command.execute(null, new File("build/libs"))
+        // Use list-based execution to avoid shell quoting issues (fixes double-quote wrapping on Linux CI)
+        def proc = [d8Exec, "--classpath", (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{it.path}.join(File.pathSeparator), "--min-api", "14", "--output", "${projectName}Android.jar", "${projectName}Desktop.jar"].execute(null, new File("build/libs"))
         proc.waitForProcessOutput(System.out, System.err)
         if (proc.exitValue() != 0) {
             throw new GradleException("d8 execution failed with exit code " + proc.exitValue())
