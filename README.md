@@ -53,44 +53,12 @@ Procedurally generates varied biomes using multi-octave Simplex noise:
 
 ---
 
-## Installation
-
-### Installing the Pre-built Mod (.jar)
-
-1. Download the latest `MapGenerator.jar` from the Releases or GitHub Actions artifacts.
-2. Open Mindustry.
-3. Go to Mods -> Import Mod -> Import from File.
-4. Select `MapGenerator.jar`.
-5. Enable the mod and restart Mindustry if prompted.
-
----
-
 ## How to Play
 
 1. In the Mindustry Main Menu, click the **Map Gen** button in the bottom-left corner.
 2. Select your desired Game Mode (e.g. *Tower Defense (Limit)* or *Tower Defense (Endless)*).
 3. Choose a Difficulty (*Easy*, *Normal*, *Hard*).
 4. Click **Generate & Play**!
-
----
-
-## Building from Source
-
-### Prerequisites
-* JDK 17 or higher
-* Gradle Wrapper (included in repository)
-
-### Desktop Jar Build
-```bash
-./gradlew jar
-```
-The compiled mod JAR will be output to `build/libs/MapGenerator.jar`.
-
-### Cross-Platform (Android & Desktop) Build
-```bash
-# Requires ANDROID_HOME environment variable set to Android SDK path
-./gradlew deploy
-```
 
 ---
 
