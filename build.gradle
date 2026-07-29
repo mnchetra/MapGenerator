@@ -69,12 +69,16 @@ tasks.register('jarAndroid'){
         def buildTools = new File("$sdkRoot/build-tools/").listFiles()?.sort()?.reverse()?.find{ f -> new File(f, isWindows ? "d8.bat" : "d8").exists() }
         def d8Exec = buildTools ? new File(buildTools, isWindows ? "d8.bat" : "d8").absolutePath : (isWindows ? "d8.bat" : "d8")
 
-        //collect dependencies needed for desugaring
-        def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{ "--classpath \"$it.path\"" }.join(" ")
+        def cp = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList()).collect{it.path}
 
         println "Running d8 desugaring via $d8Exec..."
-        // Use list-based execution to avoid shell quoting issues (fixes double-quote wrapping on Linux CI)
-        def proc = [d8Exec, "--classpath", (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{it.path}.join(File.pathSeparator), "--min-api", "14", "--output", "${projectName}Android.jar", "${projectName}Desktop.jar"].execute(null, new File("build/libs"))
+        def cmd = [d8Exec, "--lib", new File(platformRoot, "android.jar").absolutePath, "--min-api", "14", "--output", "${projectName}Android.jar", "${projectName}Desktop.jar"]
+        if(!cp.isEmpty()){
+            cmd.add(1, "--classpath")
+            cmd.add(2, cp.join(File.pathSeparator))
+        }
+
+        def proc = cmd.execute(null, new File("build/libs"))
         proc.waitForProcessOutput(System.out, System.err)
         if (proc.exitValue() != 0) {
             throw new GradleException("d8 execution failed with exit code " + proc.exitValue())
