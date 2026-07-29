@@ -44,7 +44,7 @@ public class ProceduralGenerator {
     }
 
     public enum Difficulty {
-        Easy(250), Normal(350), Hard(450);
+        Easy(250), Normal(350), Hard(450), Random(350);
 
         public final int size;
 
@@ -74,16 +74,140 @@ public class ProceduralGenerator {
         }
     }
 
+    public enum AttackMapSource {
+        Procedural("Procedural"),
+        Custom("Custom Map (.msav)"),
+        Random("Random (Chance)");
+
+        public final String displayName;
+
+        AttackMapSource(String displayName) {
+            this.displayName = displayName;
+        }
+    }
+
+    public static arc.struct.Seq<mindustry.maps.Map> getAvailableCustomAttackMaps() {
+        arc.struct.Seq<mindustry.maps.Map> list = new arc.struct.Seq<>();
+
+        if (Vars.maps != null) {
+            for (mindustry.maps.Map m : Vars.maps.customMaps()) {
+                if (m != null && !list.contains(m)) {
+                    list.add(m);
+                }
+            }
+        }
+
+        try {
+            arc.files.Fi mapsDir = arc.Core.files.internal("maps");
+            if (mapsDir != null && mapsDir.exists() && mapsDir.isDirectory()) {
+                for (arc.files.Fi file : mapsDir.list()) {
+                    if (file.extension().equalsIgnoreCase("msav")) {
+                        try {
+                            mindustry.maps.Map map = mindustry.io.MapIO.createMap(file, true);
+                            if (map != null) {
+                                boolean exists = false;
+                                for (mindustry.maps.Map existing : list) {
+                                    if (existing.file != null && existing.file.equals(file)) {
+                                        exists = true;
+                                        break;
+                                    }
+                                }
+                                if (!exists) {
+                                    list.add(map);
+                                }
+                            }
+                        } catch (Throwable t) {
+                            arc.util.Log.err("Failed to parse custom map file: " + file.name(), t);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            // ignore maps directory read errors
+        }
+
+        return list;
+    }
+
+    public static void playCustomAttackMap(mindustry.maps.Map map, Difficulty difficulty) {
+        try {
+            Vars.ui.loadAnd(() -> {
+                Vars.logic.reset();
+                isTowerDefense = false;
+                isEndlessTD = false;
+
+                Vars.world.loadMap(map);
+
+                Rules rules = Vars.state.rules != null ? Vars.state.rules : new Rules();
+                setupRules(rules, GameMode.Attack, difficulty, TDMode.Limit);
+
+                Vars.state.map = map;
+                Vars.state.rules = rules;
+                Vars.state.rules.sector = null;
+                Vars.state.rules.editor = false;
+
+                arc.Events.fire(new mindustry.game.EventType.WorldLoadEvent());
+
+                Vars.logic.play();
+                Vars.state.set(mindustry.core.GameState.State.playing);
+                arc.Events.fire(mindustry.game.EventType.Trigger.newGame);
+
+                showToast("[gold]ATTACK MODE (CUSTOM MAP)[]\n[accent]Playing custom map: " + map.name() + "[]");
+            });
+
+            arc.Core.app.post(() -> {
+                if (Vars.ui != null && Vars.ui.custom != null) {
+                    Vars.ui.custom.hide();
+                }
+            });
+
+        } catch (Exception e) {
+            Vars.ui.showException("Failed to load custom map", e);
+        }
+    }
+
     public static void generateAndPlay(GameMode mode, Difficulty difficulty) {
-        generateAndPlay(mode, difficulty, TDMode.Limit);
+        generateAndPlay(mode, difficulty, TDMode.Limit, AttackMapSource.Procedural, null);
     }
 
     public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode) {
+        generateAndPlay(mode, difficulty, tdMode, AttackMapSource.Procedural, null);
+    }
+
+    public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode, AttackMapSource attackSource, mindustry.maps.Map customMap) {
+        Difficulty actualDifficulty = (difficulty == Difficulty.Random)
+            ? arc.struct.Seq.with(Difficulty.Easy, Difficulty.Normal, Difficulty.Hard).random()
+            : difficulty;
+
+        if (mode == GameMode.Attack) {
+            arc.struct.Seq<mindustry.maps.Map> customMaps = getAvailableCustomAttackMaps();
+            boolean useCustom = false;
+
+            if (attackSource == AttackMapSource.Custom) {
+                useCustom = true;
+            } else if (difficulty == Difficulty.Random || attackSource == AttackMapSource.Random) {
+                useCustom = Mathf.chance(0.5) && customMaps.size > 0;
+            }
+
+            if (useCustom) {
+                if (customMaps.size > 0) {
+                    mindustry.maps.Map targetMap = customMap;
+                    if (targetMap == null) {
+                        targetMap = customMaps.random();
+                    }
+                    playCustomAttackMap(targetMap, actualDifficulty);
+                    return;
+                } else if (attackSource == AttackMapSource.Custom) {
+                    showToast("[orange]No custom .msav maps found! Generating procedural map instead.[]");
+                }
+            }
+        }
+
         try {
             Vars.ui.loadAnd(() -> {
                 Vars.logic.reset();
 
-                int size = difficulty.size + Mathf.random(-20, 30); // Random map size variance
+                int size = actualDifficulty.size + Mathf.random(-20, 30); // Random map size variance
                 
                 // Pre-calculate random values
                 int seed = (int) (Math.random() * Integer.MAX_VALUE);
@@ -129,10 +253,10 @@ public class ProceduralGenerator {
                 } else if (mode == GameMode.Survival) {
                     isTowerDefense = false;
                     isEndlessTD = (tdMode == TDMode.Endless);
-                    int survSize = (difficulty == Difficulty.Easy) ? 220 : ((difficulty == Difficulty.Normal) ? 280 : 340);
+                    int survSize = (actualDifficulty == Difficulty.Easy) ? 220 : ((actualDifficulty == Difficulty.Normal) ? 280 : 340);
 
                     Vars.world.loadGenerator(survSize, survSize, tiles -> {
-                        generateCivilizationSurvivalMap(tiles, survSize, difficulty, tdMode);
+                        generateCivilizationSurvivalMap(tiles, survSize, actualDifficulty, tdMode);
                     });
                 } else if (mode == GameMode.Sandbox) {
                     isTowerDefense = false;
@@ -149,23 +273,25 @@ public class ProceduralGenerator {
                     // Generate enemy base coordinates based on difficulty
                     arc.struct.Seq<arc.math.geom.Point2> enemyBases = new arc.struct.Seq<>();
                     if (mode == GameMode.Attack) {
-                        int numBases = difficulty == Difficulty.Easy ? 2 : (difficulty == Difficulty.Normal ? 3 : 5);
+                        int numBases = actualDifficulty == Difficulty.Easy ? 2 : (actualDifficulty == Difficulty.Normal ? 3 : 5);
+                        int minDistance = actualDifficulty == Difficulty.Easy ? 100 : (actualDifficulty == Difficulty.Normal ? 120 : 140);
                         for (int i = 0; i < numBases; i++) {
-                            // Scatter bases away from player core
                             int bx, by;
+                            int attempts = 0;
                             do {
                                 bx = Mathf.random(40, size - 40);
                                 by = Mathf.random(40, size - 40);
-                            } while (Mathf.dst(cx, cy, bx, by) < 120); // Keep them away from player
+                                attempts++;
+                            } while (Mathf.dst(cx, cy, bx, by) < minDistance && attempts < 300);
                             enemyBases.add(new arc.math.geom.Point2(bx, by));
                         }
                     }
 
                     Vars.world.loadGenerator(size, size, tiles -> {
-                        generateTerrain(tiles, size, mode, difficulty, offsetX, offsetY, cx, cy, enemyBases, fSx, fSy);
+                        generateTerrain(tiles, size, mode, actualDifficulty, offsetX, offsetY, cx, cy, enemyBases, fSx, fSy);
                         
                         // Generate bases inside loadGenerator (isGenerating = true)
-                        generateBases(tiles, mode, difficulty, cx, cy, enemyBases, fSx, fSy);
+                        generateBases(tiles, mode, actualDifficulty, cx, cy, enemyBases, fSx, fSy);
                         
                         // Post-process: Auto-connect all power nodes & surge towers so the enemy base is 100% powered!
                         autoConnectPowerNodes(tiles);
@@ -173,7 +299,7 @@ public class ProceduralGenerator {
                 }
 
                 Rules rules = new Rules();
-                setupRules(rules, mode, difficulty, tdMode);
+                setupRules(rules, mode, actualDifficulty, tdMode);
 
                 // Setup the state precisely as playMap does
                 Vars.state.map = new mindustry.maps.Map(arc.struct.StringMap.of("name", "Procedural Generation"));
@@ -406,14 +532,36 @@ public class ProceduralGenerator {
     }
 
     private static void generateBases(Tiles tiles, GameMode mode, Difficulty difficulty, int cx, int cy, arc.struct.Seq<arc.math.geom.Point2> enemyBases, int sx, int sy) {
-        // Place Player Core
-        clearArea(tiles, cx, cy, 18);
+        // Place Player Core based on Difficulty: Easy = Shard, Normal = Foundation, Hard = Nucleus
+        clearArea(tiles, cx, cy, 22);
         
         // Explicitly spawn starting ores near the player core since clearArea wipes all natural ores!
         buildOrePatch(tiles, cx - 8, cy + 8, 6, 6, Blocks.oreCopper);
         buildOrePatch(tiles, cx + 8, cy - 8, 6, 6, Blocks.oreLead);
         
-        placeBlock(tiles, cx, cy, Blocks.coreShard, Team.sharded);
+        mindustry.world.Block playerCoreType = (difficulty == Difficulty.Hard) ? Blocks.coreNucleus
+                                              : ((difficulty == Difficulty.Normal) ? Blocks.coreFoundation : Blocks.coreShard);
+        placeBlock(tiles, cx, cy, playerCoreType, Team.sharded);
+
+        // Starter defenses on player side for Hard difficulty (Simple Air & Ground defenses)
+        if (difficulty == Difficulty.Hard) {
+            // Air Defenses (Scatter turrets with infinite lead source)
+            placeBlock(tiles, cx - 6, cy + 6, Blocks.scatter, Team.sharded);
+            placeBlock(tiles, cx - 6, cy + 7, Blocks.itemSource, Team.sharded);
+
+            placeBlock(tiles, cx + 6, cy + 6, Blocks.scatter, Team.sharded);
+            placeBlock(tiles, cx + 6, cy + 7, Blocks.itemSource, Team.sharded);
+
+            // Ground Defenses (Lancer energy turrets with power source)
+            placeBlock(tiles, cx - 6, cy - 6, Blocks.lancer, Team.sharded);
+            placeBlock(tiles, cx + 6, cy - 6, Blocks.lancer, Team.sharded);
+
+            // Starter power source for Lancers
+            placeBlock(tiles, cx, cy - 8, Blocks.powerSource, Team.sharded);
+
+            // Additional starter Coal ore patch
+            buildOrePatch(tiles, cx - 10, cy - 10, 6, 6, Blocks.oreCoal);
+        }
 
         if (mode == GameMode.Attack) {
             mindustry.maps.generators.BaseGenerator baseGen = new mindustry.maps.generators.BaseGenerator();
@@ -436,8 +584,8 @@ public class ProceduralGenerator {
                 baseGen.generate(tiles, enemyCoreTiles, enemyCoreTiles.first(), mindustry.game.Team.crux, dummySector, diffFloat);
             }
 
-            // Cleanup pass: Remove any enemy base structures that were placed within 75 blocks of the player core!
-            int safeRadius = 75;
+            // Cleanup pass: Remove any enemy base structures that were placed within 90 blocks of the player core!
+            int safeRadius = 90;
             for (int dx = -safeRadius; dx <= safeRadius; dx++) {
                 for (int dy = -safeRadius; dy <= safeRadius; dy++) {
                     if (dx * dx + dy * dy <= safeRadius * safeRadius) {
@@ -551,7 +699,8 @@ public class ProceduralGenerator {
         switch (mode) {
             case Attack:
                 rules.attackMode = true;
-                rules.waveSpacing = difficulty == Difficulty.Hard ? 2400f : (difficulty == Difficulty.Normal ? 3000f : 3600f);
+                rules.waveSpacing = difficulty == Difficulty.Hard ? 3000f : (difficulty == Difficulty.Normal ? 3600f : 4200f);
+                rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 14400f : (difficulty == Difficulty.Normal ? 18000f : 21600f); // 4-6 minutes initial grace period to prepare!
                 break;
             case Sandbox:
                 rules.waves = false;
