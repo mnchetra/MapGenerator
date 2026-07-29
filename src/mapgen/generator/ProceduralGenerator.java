@@ -663,11 +663,12 @@ public class ProceduralGenerator {
     private static void setupRules(Rules rules, GameMode mode, Difficulty difficulty, TDMode tdMode) {
         rules.waves = true;
         rules.waveTimer = true;
-        rules.winWave = (mode == GameMode.TowerDefense && tdMode == TDMode.Limit) ? 100 : 50;
+        rules.winWave = (mode == GameMode.TowerDefense && tdMode == TDMode.Limit) ? 100 : 0;
 
         switch (mode) {
             case Attack:
                 rules.attackMode = true;
+                rules.winWave = 0; // No max win wave for Attack mode!
                 rules.waveSpacing = difficulty == Difficulty.Hard ? 3000f : (difficulty == Difficulty.Normal ? 3600f : 4200f);
                 rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 14400f : (difficulty == Difficulty.Normal ? 18000f : 21600f); // 4-6 minutes initial grace period to prepare!
                 break;
