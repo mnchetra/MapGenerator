@@ -22,7 +22,8 @@ minGameVersion: "159"
 #this is a java mod
 java: true
 
-hidden: false
+#hidden makes it client-side / multiplayer compatible
+hidden: true
 
 #enable mobile support
 mobile: true

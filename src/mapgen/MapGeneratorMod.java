@@ -22,6 +22,8 @@ public class MapGeneratorMod extends Mod {
         
         if (!Vars.headless) {
             arc.Events.on(ClientLoadEvent.class, e -> {
+                checkForUpdates();
+
                 dialog = new GeneratorDialog();
                 // Add a global button that is only visible in the main menu
                 arc.scene.ui.layout.Table t = new arc.scene.ui.layout.Table();
@@ -99,5 +101,50 @@ public class MapGeneratorMod extends Mod {
     @Override
     public void loadContent() {
         Log.info("Loading MapGenerator content.");
+    }
+
+    private static void checkForUpdates() {
+        try {
+            Http.get("https://api.github.com/repos/mnchetra/MapGenerator/releases/latest")
+                .header("User-Agent", "MindustryMod")
+                .error(t -> Log.err("Failed to check for MapGenerator updates: @", t.getMessage()))
+                .submit(response -> {
+                    try {
+                        String jsonStr = response.getResultAsString();
+                        arc.util.serialization.Jval json = arc.util.serialization.Jval.read(jsonStr);
+                        String latestTag = json.getString("tag_name", "").replace("v", "").trim();
+                        String currentVersion = "1.1";
+
+                        if (!latestTag.isEmpty() && isNewerVersion(latestTag, currentVersion)) {
+                            Log.info("MapGenerator update available: @ (Current: @)", latestTag, currentVersion);
+                            Core.app.post(() -> {
+                                if (Vars.ui != null && Vars.ui.hudfrag != null) {
+                                    Vars.ui.hudfrag.showToast("[gold]MapGenerator Update Available![]\n[accent]Version " + latestTag + " is available on GitHub![]");
+                                }
+                            });
+                        }
+                    } catch (Throwable t) {
+                        // Ignore parse errors
+                    }
+                });
+        } catch (Throwable t) {
+            // Ignore network errors
+        }
+    }
+
+    private static boolean isNewerVersion(String latest, String current) {
+        try {
+            String[] l = latest.split("\\.");
+            String[] c = current.split("\\.");
+            for (int i = 0; i < Math.max(l.length, c.length); i++) {
+                int lv = i < l.length ? Integer.parseInt(l[i].replaceAll("[^0-9]", "")) : 0;
+                int cv = i < c.length ? Integer.parseInt(c[i].replaceAll("[^0-9]", "")) : 0;
+                if (lv > cv) return true;
+                if (lv < cv) return false;
+            }
+        } catch (Exception e) {
+            return !latest.equalsIgnoreCase(current);
+        }
+        return false;
     }
 }
