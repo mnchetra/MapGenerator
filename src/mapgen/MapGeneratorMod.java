@@ -117,22 +117,22 @@ public class MapGeneratorMod extends Mod {
 
         BaseDialog winDialog = new BaseDialog("Victory!");
         
-        winDialog.cont.add("[gold]Victory! You won![]").fontScale(1.2f).pad(15f).row();
-        winDialog.cont.add("Do you want to continue playing on this map?").pad(10f).row();
+        winDialog.cont.add("[gold]Victory! You Won![]").fontScale(1.3f).pad(15f).row();
+        winDialog.cont.add("You have conquered this map!\n[lightgray]Keep playing on this current map, or exit to the main menu?[]").pad(10f).row();
 
-        winDialog.buttons.button("No", mindustry.gen.Icon.cancel, () -> {
+        winDialog.buttons.button("Main Menu", mindustry.gen.Icon.cancel, () -> {
             winDialog.hide();
             Vars.logic.reset();
             Vars.state.set(mindustry.core.GameState.State.menu);
-        }).size(150f, 54f).pad(10f);
+        }).size(160f, 54f).pad(10f);
 
-        winDialog.buttons.button("Continue", mindustry.gen.Icon.play, () -> {
+        winDialog.buttons.button("Keep Playing", mindustry.gen.Icon.play, () -> {
             winDialog.hide();
             Vars.state.set(mindustry.core.GameState.State.playing);
             if (Vars.state.rules != null) {
                 Vars.state.rules.canGameOver = false;
             }
-        }).size(150f, 54f).pad(10f);
+        }).size(160f, 54f).pad(10f);
 
         winDialog.show();
     }
