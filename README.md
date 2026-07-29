@@ -10,6 +10,7 @@ A feature-rich Mindustry Java Mod that adds an in-game procedural map generator 
 - Players can now play custom Mindustry maps (`.msav`) in Attack Mode!
 - Supports custom `.msav` maps bundled inside `assets/maps/` as well as any custom maps imported into Mindustry.
 - Includes an interactive **Map Selector Dialog** in the UI to choose specific custom maps or select random custom maps.
+- To add your maps (Survival, Attack, Tower Defense, SandBox) to the mod Contact Me: https://t.me/yourmindustrymaps
 
 ### 🎲 Default `Random` Difficulty & Custom Map Chance
 - `Random` difficulty is now the default selection in the Map Generator dialog.
