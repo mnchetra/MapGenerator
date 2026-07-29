@@ -44,6 +44,15 @@ public class MapGeneratorMod extends Mod {
             }
         });
 
+        // Victory Event: Ask player if they want to continue playing or exit
+        arc.Events.on(GameOverEvent.class, e -> {
+            if (Vars.state != null && (e.winner == Vars.player.team() || e.winner == mindustry.game.Team.sharded)) {
+                arc.Core.app.post(() -> {
+                    showVictoryContinueDialog();
+                });
+            }
+        });
+
         // Core-Only Damage Protection & Auto-Unstick for Enemy Units
         arc.Events.run(Trigger.update, () -> {
             if (ProceduralGenerator.isTowerDefense && Vars.state != null && Vars.state.isGame()) {
@@ -101,6 +110,31 @@ public class MapGeneratorMod extends Mod {
     @Override
     public void loadContent() {
         Log.info("Loading MapGenerator content.");
+    }
+
+    private static void showVictoryContinueDialog() {
+        if (Vars.headless) return;
+
+        BaseDialog winDialog = new BaseDialog("Victory!");
+        
+        winDialog.cont.add("[gold]Victory! You won![]").fontScale(1.2f).pad(15f).row();
+        winDialog.cont.add("Do you want to continue playing on this map?").pad(10f).row();
+
+        winDialog.buttons.button("No", mindustry.gen.Icon.cancel, () -> {
+            winDialog.hide();
+            Vars.logic.reset();
+            Vars.state.set(mindustry.core.GameState.State.menu);
+        }).size(150f, 54f).pad(10f);
+
+        winDialog.buttons.button("Continue", mindustry.gen.Icon.play, () -> {
+            winDialog.hide();
+            Vars.state.set(mindustry.core.GameState.State.playing);
+            if (Vars.state.rules != null) {
+                Vars.state.rules.canGameOver = false;
+            }
+        }).size(150f, 54f).pad(10f);
+
+        winDialog.show();
     }
 
     private static void checkForUpdates() {
