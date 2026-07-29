@@ -16,24 +16,30 @@ import mindustry.content.Blocks;
 
 public class MapGeneratorMod extends Mod {
     private GeneratorDialog dialog;
+    private static String latestUpdateTag = null;
 
     public MapGeneratorMod() {
         Log.info("Loaded MapGeneratorMod constructor.");
         
         if (!Vars.headless) {
             arc.Events.on(ClientLoadEvent.class, e -> {
-                checkForUpdates();
-
                 dialog = new GeneratorDialog();
+                
                 // Add a global button that is only visible in the main menu
                 arc.scene.ui.layout.Table t = new arc.scene.ui.layout.Table();
                 t.bottom().left();
-                t.button("Map Gen", mindustry.gen.Icon.map, () -> {
+                
+                t.button(b -> {
+                    b.image(mindustry.gen.Icon.map.getRegion()).padRight(6f);
+                    b.label(() -> latestUpdateTag != null ? "Map Gen [gold](Update!)[]" : "Map Gen");
+                }, mindustry.ui.Styles.defaultb, () -> {
                     dialog.show();
-                }).size(150f, 60f).pad(20f);
+                }).size(180f, 60f).pad(20f);
                 
                 t.visibility = () -> Vars.state.isMenu();
                 arc.Core.scene.add(t);
+
+                checkForUpdates();
             });
         }
 
@@ -150,10 +156,11 @@ public class MapGeneratorMod extends Mod {
                         String currentVersion = "1.1";
 
                         if (!latestTag.isEmpty() && isNewerVersion(latestTag, currentVersion)) {
+                            latestUpdateTag = latestTag;
                             Log.info("MapGenerator update available: @ (Current: @)", latestTag, currentVersion);
                             Core.app.post(() -> {
-                                if (Vars.ui != null && Vars.ui.hudfrag != null) {
-                                    Vars.ui.hudfrag.showToast("[gold]MapGenerator Update Available![]\n[accent]Version " + latestTag + " is available on GitHub![]");
+                                if (Vars.ui != null) {
+                                    Vars.ui.showInfo("[gold]MapGenerator Update Available![]\n\nVersion [accent]v" + latestTag + "[] is available on GitHub! (Current: v" + currentVersion + ")\n\n[lightgray]To update, go to Mods -> MapGenerator -> click Reinstall.[]");
                                 }
                             });
                         }

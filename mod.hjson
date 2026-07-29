@@ -7,6 +7,9 @@ name: "mapgenerator"
 #your name
 author: "mnchetra"
 
+#subtitle displayed under author in mod list
+subtitle: "Multiplayer Compatible"
+
 #the fully qualified main class of the mod
 main: "mapgen.MapGeneratorMod"
 
