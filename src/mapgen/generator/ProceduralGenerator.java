@@ -530,21 +530,27 @@ public class ProceduralGenerator {
                                               : ((difficulty == Difficulty.Normal) ? Blocks.coreFoundation : Blocks.coreShard);
         placeBlock(tiles, cx, cy, playerCoreType, Team.sharded);
 
-        // Starter defenses on player side for Hard difficulty (Simple Air & Ground defenses)
+        // Starter defenses on player side (Simple Air & Ground defenses, NO cheat item/power sources!)
         if (difficulty == Difficulty.Hard) {
-            // Air Defenses (Scatter turrets with infinite lead source)
-            placeBlock(tiles, cx - 6, cy + 6, Blocks.scatter, Team.sharded);
-            placeBlock(tiles, cx - 6, cy + 7, Blocks.itemSource, Team.sharded);
+            // Air Defenses (Scatter turrets)
+            placeBlock(tiles, cx - 5, cy + 5, Blocks.scatter, Team.sharded);
+            placeBlock(tiles, cx + 5, cy + 5, Blocks.scatter, Team.sharded);
 
-            placeBlock(tiles, cx + 6, cy + 6, Blocks.scatter, Team.sharded);
-            placeBlock(tiles, cx + 6, cy + 7, Blocks.itemSource, Team.sharded);
+            // Ground Defenses (Salvo turrets)
+            placeBlock(tiles, cx - 5, cy - 5, Blocks.salvo, Team.sharded);
+            placeBlock(tiles, cx + 5, cy - 5, Blocks.salvo, Team.sharded);
 
-            // Ground Defenses (Lancer energy turrets with power source)
-            placeBlock(tiles, cx - 6, cy - 6, Blocks.lancer, Team.sharded);
-            placeBlock(tiles, cx + 6, cy - 6, Blocks.lancer, Team.sharded);
-
-            // Starter power source for Lancers
-            placeBlock(tiles, cx, cy - 8, Blocks.powerSource, Team.sharded);
+            // Protective walls around player core
+            placeBlock(tiles, cx - 4, cy + 6, Blocks.copperWallLarge, Team.sharded);
+            placeBlock(tiles, cx + 4, cy + 6, Blocks.copperWallLarge, Team.sharded);
+            placeBlock(tiles, cx - 4, cy - 6, Blocks.copperWallLarge, Team.sharded);
+            placeBlock(tiles, cx + 4, cy - 6, Blocks.copperWallLarge, Team.sharded);
+        } else if (difficulty == Difficulty.Normal) {
+            // Air & Ground Defenses for Normal (Scatter & Duo)
+            placeBlock(tiles, cx - 4, cy + 4, Blocks.scatter, Team.sharded);
+            placeBlock(tiles, cx + 4, cy + 4, Blocks.scatter, Team.sharded);
+            placeBlock(tiles, cx - 4, cy - 4, Blocks.duo, Team.sharded);
+            placeBlock(tiles, cx + 4, cy - 4, Blocks.duo, Team.sharded);
         }
 
         if (mode == GameMode.Attack) {
