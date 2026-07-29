@@ -74,18 +74,6 @@ public class ProceduralGenerator {
         }
     }
 
-    public enum AttackMapSource {
-        Procedural("Procedural"),
-        Custom("Custom Map (.msav)"),
-        Random("Random (Chance)");
-
-        public final String displayName;
-
-        AttackMapSource(String displayName) {
-            this.displayName = displayName;
-        }
-    }
-
     public static arc.struct.Seq<mindustry.maps.Map> getAvailableCustomAttackMaps() {
         arc.struct.Seq<mindustry.maps.Map> list = new arc.struct.Seq<>();
 
@@ -167,39 +155,20 @@ public class ProceduralGenerator {
     }
 
     public static void generateAndPlay(GameMode mode, Difficulty difficulty) {
-        generateAndPlay(mode, difficulty, TDMode.Limit, AttackMapSource.Procedural, null);
+        generateAndPlay(mode, difficulty, TDMode.Limit);
     }
 
     public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode) {
-        generateAndPlay(mode, difficulty, tdMode, AttackMapSource.Procedural, null);
-    }
-
-    public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode, AttackMapSource attackSource, mindustry.maps.Map customMap) {
         Difficulty actualDifficulty = (difficulty == Difficulty.Random)
             ? arc.struct.Seq.with(Difficulty.Easy, Difficulty.Normal, Difficulty.Hard).random()
             : difficulty;
 
-        if (mode == GameMode.Attack) {
+        if (mode == GameMode.Attack && difficulty == Difficulty.Random) {
             arc.struct.Seq<mindustry.maps.Map> customMaps = getAvailableCustomAttackMaps();
-            boolean useCustom = false;
-
-            if (attackSource == AttackMapSource.Custom) {
-                useCustom = true;
-            } else if (difficulty == Difficulty.Random || attackSource == AttackMapSource.Random) {
-                useCustom = Mathf.chance(0.5) && customMaps.size > 0;
-            }
-
-            if (useCustom) {
-                if (customMaps.size > 0) {
-                    mindustry.maps.Map targetMap = customMap;
-                    if (targetMap == null) {
-                        targetMap = customMaps.random();
-                    }
-                    playCustomAttackMap(targetMap, actualDifficulty);
-                    return;
-                } else if (attackSource == AttackMapSource.Custom) {
-                    showToast("[orange]No custom .msav maps found! Generating procedural map instead.[]");
-                }
+            if (customMaps.size > 0 && Mathf.chance(0.5)) {
+                mindustry.maps.Map targetMap = customMaps.random();
+                playCustomAttackMap(targetMap, actualDifficulty);
+                return;
             }
         }
 
