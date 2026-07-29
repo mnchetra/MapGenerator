@@ -473,6 +473,25 @@ public class ProceduralGenerator {
         }
     }
 
+    private static void spawnStartingOres(Tiles tiles, int cx, int cy, Difficulty difficulty) {
+        // Build rich organic starting ore patches right around the player core!
+        buildOrePatch(tiles, cx - 8, cy + 6, 8, 8, Blocks.oreCopper);
+        buildOrePatch(tiles, cx - 12, cy + 2, 7, 7, Blocks.oreCopper);
+        
+        buildOrePatch(tiles, cx + 8, cy - 6, 8, 8, Blocks.oreLead);
+        buildOrePatch(tiles, cx + 12, cy - 2, 7, 7, Blocks.oreLead);
+        
+        buildOrePatch(tiles, cx - 6, cy - 10, 7, 7, Blocks.oreCoal);
+        buildOrePatch(tiles, cx + 6, cy + 10, 7, 7, Blocks.oreScrap);
+
+        if (difficulty == Difficulty.Normal || difficulty == Difficulty.Hard) {
+            buildOrePatch(tiles, cx + 10, cy + 8, 7, 7, Blocks.oreTitanium);
+        }
+        if (difficulty == Difficulty.Hard) {
+            buildOrePatch(tiles, cx - 10, cy - 8, 7, 7, Blocks.oreThorium);
+        }
+    }
+
     private static void clearArea(Tiles tiles, int x, int y, int radius) {
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -radius; dy <= radius; dy++) {
@@ -501,12 +520,11 @@ public class ProceduralGenerator {
     }
 
     private static void generateBases(Tiles tiles, GameMode mode, Difficulty difficulty, int cx, int cy, arc.struct.Seq<arc.math.geom.Point2> enemyBases, int sx, int sy) {
-        // Place Player Core based on Difficulty: Easy = Shard, Normal = Foundation, Hard = Nucleus
-        clearArea(tiles, cx, cy, 22);
+        // Clear immediate footprint for Player Core (reduced from 22 to 8 to avoid clearing natural terrain!)
+        clearArea(tiles, cx, cy, 8);
         
-        // Explicitly spawn starting ores near the player core since clearArea wipes all natural ores!
-        buildOrePatch(tiles, cx - 8, cy + 8, 6, 6, Blocks.oreCopper);
-        buildOrePatch(tiles, cx + 8, cy - 8, 6, 6, Blocks.oreLead);
+        // Spawn rich, natural starting ores around the player core!
+        spawnStartingOres(tiles, cx, cy, difficulty);
         
         mindustry.world.Block playerCoreType = (difficulty == Difficulty.Hard) ? Blocks.coreNucleus
                                               : ((difficulty == Difficulty.Normal) ? Blocks.coreFoundation : Blocks.coreShard);
@@ -527,9 +545,6 @@ public class ProceduralGenerator {
 
             // Starter power source for Lancers
             placeBlock(tiles, cx, cy - 8, Blocks.powerSource, Team.sharded);
-
-            // Additional starter Coal ore patch
-            buildOrePatch(tiles, cx - 10, cy - 10, 6, 6, Blocks.oreCoal);
         }
 
         if (mode == GameMode.Attack) {
@@ -1776,8 +1791,12 @@ public class ProceduralGenerator {
         for (int dx = -halfW; dx <= halfW; dx++) {
             for (int dy = -halfH; dy <= halfH; dy++) {
                 Tile tile = tiles.get(centerX + dx, centerY + dy);
-                if (tile != null && tile.block() == Blocks.air) {
-                    tile.setOverlay(ore);
+                if (tile != null && !tile.floor().isLiquid) {
+                    float distNorm = (dx * dx) / (float)(w * w / 4f) + (dy * dy) / (float)(h * h / 4f);
+                    if (distNorm <= 1.0f || Mathf.chance(0.5)) {
+                        tile.setBlock(Blocks.air);
+                        tile.setOverlay(ore);
+                    }
                 }
             }
         }

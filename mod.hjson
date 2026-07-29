@@ -1,5 +1,5 @@
 #the mod name as displayed in-game
-displayName: "MapGenerator"
+displayName: "MapGenerator\n[lightgray]Multiplayer Compatible[]"
 
 #the internal name of your mod
 name: "mapgenerator"
