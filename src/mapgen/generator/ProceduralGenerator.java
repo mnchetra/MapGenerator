@@ -24,6 +24,14 @@ public class ProceduralGenerator {
     public static int tdSpawnY = 0;
     private static int[][] tdStageWaypoints = new int[5][7]; // [stageIndex][w1, w2, w3, turn1Y, turn2Y, patternType, stageEndX]
 
+    public static GameMode lastMode = GameMode.Survival;
+    public static Difficulty lastDifficulty = Difficulty.Random;
+    public static TDMode lastTDMode = TDMode.Limit;
+
+    public static void playNextMap() {
+        generateAndPlay(lastMode, lastDifficulty, lastTDMode);
+    }
+
     public enum GameMode {
         Attack, Survival, Sandbox, TowerDefense;
 
@@ -79,7 +87,7 @@ public class ProceduralGenerator {
 
         if (Vars.maps != null) {
             for (mindustry.maps.Map m : Vars.maps.customMaps()) {
-                if (m != null && !list.contains(m)) {
+                if (m != null && m.rules().attackMode && m.teams.contains(mindustry.game.Team.crux.id) && !list.contains(m)) {
                     list.add(m);
                 }
             }
@@ -92,7 +100,7 @@ public class ProceduralGenerator {
                     if (file.extension().equalsIgnoreCase("msav")) {
                         try {
                             mindustry.maps.Map map = mindustry.io.MapIO.createMap(file, true);
-                            if (map != null) {
+                            if (map != null && map.rules().attackMode && map.teams.contains(mindustry.game.Team.crux.id)) {
                                 boolean exists = false;
                                 for (mindustry.maps.Map existing : list) {
                                     if (existing.file != null && existing.file.equals(file)) {
@@ -125,6 +133,37 @@ public class ProceduralGenerator {
                 isEndlessTD = false;
 
                 Vars.world.loadMap(map);
+
+                // Verify enemy core exists on loaded custom map
+                boolean hasEnemyCore = false;
+                Tile spawnTile = null;
+
+                for (int x = 0; x < Vars.world.width(); x++) {
+                    for (int y = 0; y < Vars.world.height(); y++) {
+                        Tile tile = Vars.world.tile(x, y);
+                        if (tile != null) {
+                            if (tile.build != null && tile.build.block instanceof mindustry.world.blocks.storage.CoreBlock && tile.build.team != Vars.player.team()) {
+                                hasEnemyCore = true;
+                                break;
+                            }
+                            if (spawnTile == null && (tile.overlay() == Blocks.spawn || (tile.build != null && tile.build.team == Team.crux))) {
+                                spawnTile = tile;
+                            }
+                        }
+                    }
+                    if (hasEnemyCore) break;
+                }
+
+                if (!hasEnemyCore && spawnTile != null) {
+                    spawnTile.setNet(Blocks.coreFoundation, Team.crux, 0);
+                    hasEnemyCore = true;
+                }
+
+                if (!hasEnemyCore) {
+                    arc.util.Log.info("Custom map " + map.name() + " has no enemy cores! Falling back to procedural attack map generation.");
+                    generateAndPlay(GameMode.Attack, difficulty, TDMode.Limit);
+                    return;
+                }
 
                 Rules rules = Vars.state.rules != null ? Vars.state.rules : new Rules();
                 setupRules(rules, GameMode.Attack, difficulty, TDMode.Limit);
@@ -159,13 +198,17 @@ public class ProceduralGenerator {
     }
 
     public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode) {
+        lastMode = mode;
+        lastDifficulty = difficulty;
+        lastTDMode = tdMode;
+
         Difficulty actualDifficulty = (difficulty == Difficulty.Random)
             ? arc.struct.Seq.with(Difficulty.Easy, Difficulty.Normal, Difficulty.Hard).random()
             : difficulty;
 
         if (mode == GameMode.Attack && difficulty == Difficulty.Random) {
             arc.struct.Seq<mindustry.maps.Map> customMaps = getAvailableCustomAttackMaps();
-            if (customMaps.size > 0 && Mathf.chance(0.5)) {
+            if (customMaps.size > 0 && Mathf.chance(0.05)) {
                 mindustry.maps.Map targetMap = customMaps.random();
                 playCustomAttackMap(targetMap, actualDifficulty);
                 return;
@@ -580,7 +623,7 @@ public class ProceduralGenerator {
                 for (int dy = -safeRadius; dy <= safeRadius; dy++) {
                     if (dx * dx + dy * dy <= safeRadius * safeRadius) {
                         Tile t = tiles.get(cx + dx, cy + dy);
-                        if (t != null && t.team() == Team.crux) {
+                        if (t != null && t.team() == Team.crux && !(t.block() instanceof mindustry.world.blocks.storage.CoreBlock)) {
                             t.setBlock(Blocks.air); 
                         }
                     }

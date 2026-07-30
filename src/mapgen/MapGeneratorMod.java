@@ -50,17 +50,33 @@ public class MapGeneratorMod extends Mod {
             }
         });
 
-        // Victory Event: Ask player if they want to continue playing or exit
-        arc.Events.on(GameOverEvent.class, e -> {
-            if (Vars.state != null && (e.winner == Vars.player.team() || e.winner == mindustry.game.Team.sharded)) {
-                arc.Core.app.post(() -> {
-                    showVictoryContinueDialog();
-                });
+        // Victory & Defeat Event: Ask player if they want to continue playing or exit
+        arc.Events.on(WinEvent.class, e -> {
+            if (Vars.state != null && Vars.state.rules != null) {
+                Vars.state.rules.canGameOver = false;
             }
+            arc.Core.app.post(() -> {
+                showGameOverDialog(true);
+            });
         });
 
-        // Core-Only Damage Protection & Auto-Unstick for Enemy Units
+        arc.Events.on(LoseEvent.class, e -> {
+            if (Vars.state != null && Vars.state.rules != null) {
+                Vars.state.rules.canGameOver = false;
+            }
+            arc.Core.app.post(() -> {
+                showGameOverDialog(false);
+            });
+        });
+
+        // Core-Only Damage Protection & Auto-Unstick for Enemy Units, and Native GameOver Dialog Suppression
         arc.Events.run(Trigger.update, () -> {
+            if (Vars.ui != null && Vars.ui.restart != null && Vars.ui.restart.isShown()) {
+                if (Vars.state != null && Vars.state.rules != null && !Vars.state.rules.canGameOver) {
+                    Vars.ui.restart.hide();
+                }
+            }
+
             if (ProceduralGenerator.isTowerDefense && Vars.state != null && Vars.state.isGame()) {
                 if (Groups.build != null) {
                     Groups.build.each(b -> {
@@ -118,29 +134,43 @@ public class MapGeneratorMod extends Mod {
         Log.info("Loading MapGenerator content.");
     }
 
-    private static void showVictoryContinueDialog() {
+    private static BaseDialog endDialog = null;
+
+    private static void showGameOverDialog(boolean victory) {
         if (Vars.headless) return;
 
-        BaseDialog winDialog = new BaseDialog("Victory!");
-        
-        winDialog.cont.add("[gold]Victory! You Won![]").fontScale(1.3f).pad(15f).row();
-        winDialog.cont.add("You have conquered this map!\n[lightgray]Keep playing on this current map, or exit to the main menu?[]").pad(10f).row();
+        if (endDialog != null) {
+            endDialog.hide();
+        }
 
-        winDialog.buttons.button("Main Menu", mindustry.gen.Icon.cancel, () -> {
-            winDialog.hide();
+        if (Vars.ui != null && Vars.ui.restart != null) {
+            Vars.ui.restart.hide();
+        }
+
+        endDialog = new BaseDialog(victory ? "Victory!" : "Defeat!");
+        
+        if (victory) {
+            endDialog.cont.add("[gold]Victory! You Won![]").fontScale(1.3f).pad(15f).row();
+            endDialog.cont.add("You have conquered this map!\n[lightgray]Generate a new map to keep playing, or exit to the main menu?[]").pad(10f).row();
+        } else {
+            endDialog.cont.add("[scarlet]Defeat! Core Destroyed![]").fontScale(1.3f).pad(15f).row();
+            endDialog.cont.add("Your base was overrun!\n[lightgray]Generate a new map to try again, or exit to the main menu?[]").pad(10f).row();
+        }
+
+        endDialog.buttons.button("Main Menu", mindustry.gen.Icon.cancel, () -> {
+            endDialog.hide();
+            endDialog = null;
             Vars.logic.reset();
             Vars.state.set(mindustry.core.GameState.State.menu);
         }).size(160f, 54f).pad(10f);
 
-        winDialog.buttons.button("Keep Playing", mindustry.gen.Icon.play, () -> {
-            winDialog.hide();
-            Vars.state.set(mindustry.core.GameState.State.playing);
-            if (Vars.state.rules != null) {
-                Vars.state.rules.canGameOver = false;
-            }
+        endDialog.buttons.button(victory ? "Next Map" : "Try New Map", mindustry.gen.Icon.play, () -> {
+            endDialog.hide();
+            endDialog = null;
+            ProceduralGenerator.playNextMap();
         }).size(160f, 54f).pad(10f);
 
-        winDialog.show();
+        endDialog.show();
     }
 
     private static void checkForUpdates() {
@@ -153,7 +183,7 @@ public class MapGeneratorMod extends Mod {
                         String jsonStr = response.getResultAsString();
                         arc.util.serialization.Jval json = arc.util.serialization.Jval.read(jsonStr);
                         String latestTag = json.getString("tag_name", "").replace("v", "").trim();
-                        String currentVersion = "1.1";
+                        String currentVersion = "1.2";
 
                         if (!latestTag.isEmpty() && isNewerVersion(latestTag, currentVersion)) {
                             latestUpdateTag = latestTag;

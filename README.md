@@ -4,6 +4,20 @@ A feature-rich Mindustry Java Mod that adds an in-game procedural map generator 
 
 ---
 
+## What's New in v1.2
+
+### ⚔️ Defeat & Victory Continue Screen (Next Map Generation)
+- **Defeat Continue Option**: When your base is destroyed, a new **"Defeat! Core Destroyed!"** dialog appears with options to return to the **Main Menu** or click **Try New Map** to immediately generate and launch a fresh map!
+- **Seamless Next Map Progression**: Clicking **Keep Playing** (on Victory) or **Try New Map** (on Defeat) now automatically generates and loads a brand new map matching your selected game mode and difficulty.
+- **Dialog Overlay Fix**: Resolved issue where native `GameOverDialog` overlayed on top of custom win/defeat screens.
+
+### 🗺️ Attack Mode Core Verification & Custom Map Rebalancing
+- **0-Core Wave 1 Bug Fix**: Resolved an issue where procedural and custom Attack maps could lose their enemy cores during base generation cleanup, causing immediate Wave 1 victory.
+- **Enemy Core Auto-Placement & Fallback**: Custom Attack maps are scanned upon loading; if no enemy core is present, the mod places a Crux Core at an enemy spawn/structure location, or safely falls back to procedural map generation.
+- **Custom Map Frequency Adjustment**: Reduced custom `.msav` map selection chance on `Random` difficulty from 50% down to 5% so procedural terrain generation remains the primary gameplay focus.
+
+---
+
 ## What's New in v1.1
 
 ### 🗺️ Custom `.msav` Map Support in Attack Mode
@@ -89,6 +103,6 @@ To add your own custom `.msav` maps to the mod:
 
 ## License & Credits
 
-* **Author**: `mnchetra`
+* **Author**: `Seven`
 * Built for Mindustry v7+ (minGameVersion 159+).
 * Powered by Arc and the Mindustry API.
