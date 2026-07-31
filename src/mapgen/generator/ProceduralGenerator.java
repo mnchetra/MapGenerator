@@ -544,7 +544,9 @@ public class ProceduralGenerator {
                         // Single-arg setBlock(Blocks.air) correctly clears any block type
                         // (walls, props, buildings) during map generation
                         t.setBlock(Blocks.air);
-                        t.setOverlay(Blocks.air);
+                        if (t.overlay() != Blocks.spawn && (t.overlay() == null || t.overlay().itemDrop == null)) {
+                            t.setOverlay(Blocks.air);
+                        }
                         // Make sure the floor is solid so cores/buildings don't explode on liquid
                         if (t.floor().isLiquid) {
                             t.setFloor(Blocks.stone.asFloor());
@@ -679,15 +681,21 @@ public class ProceduralGenerator {
         
         if (diff == Difficulty.Easy) {
             placeBlock(tiles, ex, ey, Blocks.coreShard, Team.crux);
+            placeBlock(tiles, ex + 2, ey, Blocks.unloader, Team.crux);
+            placeBlock(tiles, ex + 3, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 3, 3, Blocks.duo, true);
             buildRing(tiles, ex, ey, 6, 6, Blocks.copperWallLarge, false);
         } else if (diff == Difficulty.Normal) {
             placeBlock(tiles, ex, ey, Blocks.coreFoundation, Team.crux);
+            placeBlock(tiles, ex + 3, ey, Blocks.unloader, Team.crux);
+            placeBlock(tiles, ex + 4, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 4, 4, Blocks.lancer, true);
             buildRing(tiles, ex, ey, 4, 2, Blocks.scatter, true);
             buildRing(tiles, ex, ey, 7, 7, Blocks.titaniumWallLarge, false);
         } else {
             placeBlock(tiles, ex, ey, Blocks.coreNucleus, Team.crux);
+            placeBlock(tiles, ex + 3, ey, Blocks.unloader, Team.crux);
+            placeBlock(tiles, ex + 4, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 5, 5, Blocks.ripple, true);
             buildRing(tiles, ex, ey, 5, 2, Blocks.salvo, true);
             buildRing(tiles, ex, ey, 8, 8, Blocks.thoriumWallLarge, false);
@@ -733,8 +741,8 @@ public class ProceduralGenerator {
             case Attack:
                 rules.attackMode = true;
                 rules.winWave = 0; // No max win wave for Attack mode!
-                rules.waveSpacing = difficulty == Difficulty.Hard ? 3000f : (difficulty == Difficulty.Normal ? 3600f : 4200f);
-                rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 14400f : (difficulty == Difficulty.Normal ? 18000f : 21600f); // 4-6 minutes initial grace period to prepare!
+                rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
+                rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 18000f : (difficulty == Difficulty.Normal ? 21600f : 25200f); // Increased initial grace period to prepare!
                 break;
             case Sandbox:
                 rules.waves = false;
@@ -742,7 +750,7 @@ public class ProceduralGenerator {
                 rules.infiniteResources = true;
                 break;
             case TowerDefense:
-                rules.waveSpacing = 3000f; // 50 seconds per wave
+                rules.waveSpacing = difficulty == Difficulty.Hard ? 4200f : (difficulty == Difficulty.Normal ? 5400f : 7200f);
                 break;
             case Survival:
                 rules.waveSpacing = 7200f;
@@ -774,8 +782,8 @@ public class ProceduralGenerator {
         if (mode == GameMode.Survival) {
             rules.waves = true;
             rules.waveTimer = true;
-            rules.waveSpacing = 3600f; // 60 seconds per wave
-            rules.initialWaveSpacing = 18000f; // 5 minutes initial grace period to let player prepare!
+            rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
+            rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 18000f : (difficulty == Difficulty.Normal ? 21600f : 25200f);
             rules.spawns.clear();
 
             if (tdMode == TDMode.Limit) {
@@ -819,7 +827,7 @@ public class ProceduralGenerator {
         } else if (mode == GameMode.TowerDefense) {
             rules.waves = true;
             rules.waveTimer = true;
-            rules.waveSpacing = 3000f; // 50 seconds per wave
+            rules.waveSpacing = difficulty == Difficulty.Hard ? 4200f : (difficulty == Difficulty.Normal ? 5400f : 7200f);
             rules.spawns.clear();
 
             if (tdMode == TDMode.Limit) {
