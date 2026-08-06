@@ -204,7 +204,7 @@ public class MapGeneratorMod extends Mod {
                         String jsonStr = response.getResultAsString();
                         arc.util.serialization.Jval json = arc.util.serialization.Jval.read(jsonStr);
                         String latestTag = json.getString("tag_name", "").replace("v", "").trim();
-                        String currentVersion = "1.2";
+                        final String currentVersion = (Vars.mods != null && Vars.mods.getMod(MapGeneratorMod.class) != null && Vars.mods.getMod(MapGeneratorMod.class).meta != null && Vars.mods.getMod(MapGeneratorMod.class).meta.version != null) ? Vars.mods.getMod(MapGeneratorMod.class).meta.version : "1.3";
 
                         if (!latestTag.isEmpty() && isNewerVersion(latestTag, currentVersion)) {
                             latestUpdateTag = latestTag;
