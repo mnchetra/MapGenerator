@@ -6,6 +6,7 @@ import mindustry.game.EventType.*;
 import mindustry.gen.Groups;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.mod.*;
+import mindustry.mod.Mods.LoadedMod;
 import mindustry.ui.dialogs.*;
 import mindustry.*;
 import mapgen.ui.GeneratorDialog;
@@ -20,6 +21,14 @@ public class MapGeneratorMod extends Mod {
 
     public MapGeneratorMod() {
         Log.info("Loaded MapGeneratorMod constructor.");
+        
+        // Force hidden = true at runtime so Mindustry omits this mod from connect packets when joining servers
+        if (Vars.mods != null) {
+            LoadedMod mod = Vars.mods.getMod(getClass());
+            if (mod != null && mod.meta != null) {
+                mod.meta.hidden = true;
+            }
+        }
         
         if (!Vars.headless) {
             arc.Events.on(ClientLoadEvent.class, e -> {
@@ -45,7 +54,7 @@ public class MapGeneratorMod extends Mod {
 
         // Register wave event listener for dynamic expanding Tower Defense mode
         arc.Events.on(WaveEvent.class, e -> {
-            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.client()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.isGame()) {
                 ProceduralGenerator.checkTDExpansion();
             }
@@ -53,7 +62,7 @@ public class MapGeneratorMod extends Mod {
 
         // Victory & Defeat Event: Ask player if they want to continue playing or exit
         arc.Events.on(WinEvent.class, e -> {
-            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.client()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.rules != null) {
                 Vars.state.rules.canGameOver = false;
             }
@@ -63,7 +72,7 @@ public class MapGeneratorMod extends Mod {
         });
 
         arc.Events.on(LoseEvent.class, e -> {
-            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.client()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.rules != null) {
                 Vars.state.rules.canGameOver = false;
             }
@@ -74,7 +83,7 @@ public class MapGeneratorMod extends Mod {
 
         // Core-Only Damage Protection & Auto-Unstick for Enemy Units, and Native GameOver Dialog Suppression
         arc.Events.run(Trigger.update, () -> {
-            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.client()) || (Vars.state != null && Vars.state.isCampaign())) return;
 
             if (Vars.ui != null && Vars.ui.restart != null && Vars.ui.restart.isShown()) {
                 if (Vars.state != null && Vars.state.rules != null && !Vars.state.rules.canGameOver) {
