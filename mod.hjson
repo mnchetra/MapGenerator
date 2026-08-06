@@ -1,5 +1,5 @@
 #the mod name as displayed in-game
-displayName: "MapGenerator\n[lightgray]Multiplayer Compatible[]"
+displayName: "MapGenerator"
 
 #the internal name of your mod
 name: "mapgenerator"
@@ -8,7 +8,7 @@ name: "mapgenerator"
 author: "Seven"
 
 #subtitle displayed under author in mod list
-subtitle: "Multiplayer Compatible"
+subtitle: "Procedural Map Addon"
 
 #the fully qualified main class of the mod
 main: "mapgen.MapGeneratorMod"
@@ -26,7 +26,7 @@ minGameVersion: "159"
 java: true
 
 #hidden makes it client-side / multiplayer compatible
-hidden: true
+hidden: false
 
 #enable mobile support
 mobile: true

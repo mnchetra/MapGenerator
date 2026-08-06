@@ -1,13 +1,13 @@
 {
-  "displayName": "MapGenerator\n[lightgray]Multiplayer Compatible[]",
+  "displayName": "MapGenerator",
   "name": "mapgenerator",
   "author": "Seven",
-  "subtitle": "Multiplayer Compatible",
+  "subtitle": "Procedural Map Addon",
   "main": "mapgen.MapGeneratorMod",
   "description": "A mod that adds a procedurally generated map option with adjustable game modes including an expanding Tower Defense mode!",
-  "version": "1.2",
+  "version": "1.3",
   "minGameVersion": "159",
   "java": true,
-  "hidden": false,
+  "hidden": true,
   "mobile": true
 }

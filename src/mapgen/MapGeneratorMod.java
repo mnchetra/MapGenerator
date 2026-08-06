@@ -45,6 +45,7 @@ public class MapGeneratorMod extends Mod {
 
         // Register wave event listener for dynamic expanding Tower Defense mode
         arc.Events.on(WaveEvent.class, e -> {
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.isGame()) {
                 ProceduralGenerator.checkTDExpansion();
             }
@@ -52,6 +53,7 @@ public class MapGeneratorMod extends Mod {
 
         // Victory & Defeat Event: Ask player if they want to continue playing or exit
         arc.Events.on(WinEvent.class, e -> {
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.rules != null) {
                 Vars.state.rules.canGameOver = false;
             }
@@ -61,6 +63,7 @@ public class MapGeneratorMod extends Mod {
         });
 
         arc.Events.on(LoseEvent.class, e -> {
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
             if (Vars.state != null && Vars.state.rules != null) {
                 Vars.state.rules.canGameOver = false;
             }
@@ -71,6 +74,8 @@ public class MapGeneratorMod extends Mod {
 
         // Core-Only Damage Protection & Auto-Unstick for Enemy Units, and Native GameOver Dialog Suppression
         arc.Events.run(Trigger.update, () -> {
+            if (!ProceduralGenerator.isMapGeneratorActive || (Vars.net != null && Vars.net.active()) || (Vars.state != null && Vars.state.isCampaign())) return;
+
             if (Vars.ui != null && Vars.ui.restart != null && Vars.ui.restart.isShown()) {
                 if (Vars.state != null && Vars.state.rules != null && !Vars.state.rules.canGameOver) {
                     Vars.ui.restart.hide();
@@ -85,6 +90,9 @@ public class MapGeneratorMod extends Mod {
                         }
                     });
                 }
+
+                // In multiplayer, unit unstick movement logic is managed by server/host to avoid client sync stutter
+                if (Vars.net != null && Vars.net.client()) return;
 
                 if (Groups.unit != null) {
                     Groups.unit.each(u -> {
@@ -157,6 +165,8 @@ public class MapGeneratorMod extends Mod {
             endDialog.cont.add("Your base was overrun!\n[lightgray]Generate a new map to try again, or exit to the main menu?[]").pad(10f).row();
         }
 
+        boolean isClient = Vars.net != null && Vars.net.client();
+
         endDialog.buttons.button("Main Menu", mindustry.gen.Icon.cancel, () -> {
             endDialog.hide();
             endDialog = null;
@@ -164,11 +174,13 @@ public class MapGeneratorMod extends Mod {
             Vars.state.set(mindustry.core.GameState.State.menu);
         }).size(160f, 54f).pad(10f);
 
-        endDialog.buttons.button(victory ? "Next Map" : "Try New Map", mindustry.gen.Icon.play, () -> {
-            endDialog.hide();
-            endDialog = null;
-            ProceduralGenerator.playNextMap();
-        }).size(160f, 54f).pad(10f);
+        if (!isClient) {
+            endDialog.buttons.button(victory ? "Next Map" : "Try New Map", mindustry.gen.Icon.play, () -> {
+                endDialog.hide();
+                endDialog = null;
+                ProceduralGenerator.playNextMap();
+            }).size(160f, 54f).pad(10f);
+        }
 
         endDialog.show();
     }

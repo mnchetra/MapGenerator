@@ -4,6 +4,31 @@ A feature-rich Mindustry Java Mod that adds an in-game procedural map generator 
 
 ---
 
+## What's New in v1.3
+
+### 🌐 Full Multiplayer Server Compatibility
+- **Server Joining Fix (`hidden: true`)**: Updated mod metadata so Mindustry treats the mod as a clean client-side add-on, allowing players to freely join any public or private multiplayer server without being blocked or rejected.
+- **Server & Campaign Isolation**: Isolated all mod event listeners (`WaveEvent`, `WinEvent`, `LoseEvent`, `Trigger.update`) so the mod remains 100% passive when playing on multiplayer servers or campaign maps.
+
+### 📦 Resource Management & Enemy Core Stocking
+- **All-Resource Stocked Enemy Cores**: Enemy Crux cores (`Team.crux`) are automatically populated with 100% max capacity for **EVERY resource in Mindustry** (Serpulo & Erekir items) via post-game-start frame initialization. Enemy bases can build/fire continuously, and players can destroy/loot enemy cores to capture all resources.
+- **Balanced Player Starter Loadout**: Reset player core (`Team.sharded`) starting loadout to standard starter resources (1,000 Copper, 1,000 Lead, 100 Silicon, 100 Graphite) without cheat resources flooding player inventory.
+
+### ⚔️ Hard Mode Pacing & 35-Wave Preparation Grace
+- **10-Minute Initial Prep Timer**: Added an initial 10-minute (`36000f`) grace period before Wave 1 arrives across all modes.
+- **Rebalanced Waves 1–35**: Waves 1 to 35 consist of gentle T1/T2 scouting parties (Dagger, Crawler, Flare, Atrax, Mace), giving players 35 waves of prep time before T3 (Fortress/Zenith/Spiroct) and T4/T5 (Scepter/Reign/Toxopid/Omura) heavy units spawn.
+
+### 🌊 Natural Water Features (Rivers & Lakes)
+- **Rivers & Lakes**: Procedurally generates winding rivers (~4–6 tiles wide) and natural lake bodies (~20–30 tiles wide) without flooding terrain.
+- **Liquid Preservation**: Path carving and area clearing preserve natural liquid floors.
+
+### 🚁 Dynamic Terrain-Adaptive Enemy Wave Spawning
+- **Dry Maps**: Spawns **Ground Units ONLY** (`Dagger`, `Crawler`, `Mace`, `Atrax`, `Fortress`, `Spiroct`, `Scepter`, `Reign`, `Toxopid`).
+- **Naval Water Maps**: Spawns **Naval Combat & Support Ships** (`Risso`, `Retusa`, `Minke`, `Oxynoe`, `Bryde`, `Aegires`, `Sei`, `Omura`) AND **Flying Air Units**.
+- **Obstacle / Blocked Water Maps**: Spawns **Flying Air Units ONLY** (`Flare`, `Horizon`, `Zenith`, `Antumbra`, `Eclipse`) so enemies fly over obstacles directly to the player core.
+
+---
+
 ## What's New in v1.2
 
 ### ⚔️ Defeat & Victory Continue Screen (Next Map Generation)

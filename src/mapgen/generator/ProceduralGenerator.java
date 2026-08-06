@@ -15,8 +15,10 @@ import mindustry.core.GameState;
 import mindustry.game.SpawnGroup;
 import mindustry.content.UnitTypes;
 import mindustry.world.blocks.logic.MessageBlock.MessageBuild;
+import mindustry.gen.Groups;
 
 public class ProceduralGenerator {
+    public static boolean isMapGeneratorActive = false;
     public static boolean isTowerDefense = false;
     public static boolean isEndlessTD = false;
     public static int tdStage = 1;
@@ -127,6 +129,7 @@ public class ProceduralGenerator {
 
     public static void playCustomAttackMap(mindustry.maps.Map map, Difficulty difficulty) {
         try {
+            isMapGeneratorActive = true;
             Vars.ui.loadAnd(() -> {
                 Vars.logic.reset();
                 isTowerDefense = false;
@@ -179,6 +182,23 @@ public class ProceduralGenerator {
                 Vars.state.set(mindustry.core.GameState.State.playing);
                 arc.Events.fire(mindustry.game.EventType.Trigger.newGame);
 
+                // Stock ONLY enemy Crux cores with 100% of all items in the game after logic initialization completes!
+                arc.Core.app.post(() -> {
+                    if (Groups.build != null) {
+                        Groups.build.each(b -> {
+                            if (b != null && b.team == Team.crux && b instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild core) {
+                                if (Vars.content != null && Vars.content.items() != null) {
+                                    for (mindustry.type.Item item : Vars.content.items()) {
+                                        if (item != null) {
+                                            core.items.set(item, core.storageCapacity);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+
                 showToast("[gold]ATTACK MODE (CUSTOM MAP)[]\n[accent]Playing custom map: " + map.name() + "[]");
             });
 
@@ -198,6 +218,7 @@ public class ProceduralGenerator {
     }
 
     public static void generateAndPlay(GameMode mode, Difficulty difficulty, TDMode tdMode) {
+        isMapGeneratorActive = true;
         lastMode = mode;
         lastDifficulty = difficulty;
         lastTDMode = tdMode;
@@ -319,13 +340,28 @@ public class ProceduralGenerator {
                 Vars.state.rules.sector = null;
                 Vars.state.rules.editor = false;
 
-                // Fire WorldLoadEvent to initialize all systems (BlockIndexer, Pathfinder, Renderer, etc)
-                // This naturally detects our pre-placed buildings and registers them to the correct teams.
                 arc.Events.fire(new mindustry.game.EventType.WorldLoadEvent());
 
                 Vars.logic.play();
                 Vars.state.set(mindustry.core.GameState.State.playing);
                 arc.Events.fire(mindustry.game.EventType.Trigger.newGame);
+
+                // Stock ONLY enemy Crux cores with 100% of all items in the game after logic initialization completes!
+                arc.Core.app.post(() -> {
+                    if (Groups.build != null) {
+                        Groups.build.each(b -> {
+                            if (b != null && b.team == Team.crux && b instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild core) {
+                                if (Vars.content != null && Vars.content.items() != null) {
+                                    for (mindustry.type.Item item : Vars.content.items()) {
+                                        if (item != null) {
+                                            core.items.set(item, core.storageCapacity);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
 
                 if (mode == GameMode.TowerDefense) {
                     if (isEndlessTD) {
@@ -353,6 +389,12 @@ public class ProceduralGenerator {
         Biome biome = biomes[Mathf.random(biomes.length - 1)];
         boolean hasSand = biome == Biome.Desert || biome == Biome.Archipelago;
 
+        // Seed-based water style (40% River map, 40% Lake map, 20% Dry map)
+        int waterRoll = Mathf.random(99);
+        boolean isRiverMap = waterRoll < 40;
+        boolean isLakeMap = waterRoll >= 40 && waterRoll < 80;
+        boolean isDryMap = waterRoll >= 80;
+
         if (mode == GameMode.Attack) {
             // Complex Cavern & River Generation (Ridged Multi-fractal)
             for (int x = 0; x < size; x++) {
@@ -365,16 +407,21 @@ public class ProceduralGenerator {
                     // Base room generation (lower frequency)
                     float roomNoise = Simplex.noise3d(1, 3, 0.5f, 1f / 120f, x + offsetX, y + offsetY, 0f);
                     
-                    // Liquid rivers (winding curves)
-                    float riverNoise = Math.abs(Simplex.noise3d(2, 2, 0.5f, 1f / 150f, x + offsetX, y + offsetY, 0f));
+                    // Natural liquid rivers & lakes
+                    float riverNoise = Math.abs(Simplex.noise3d(2, 2, 0.5f, 1f / 90f, x + offsetX, y + offsetY, 0f));
+                    float lakeNoise = Simplex.noise2d(6, 3, 0.5f, 1f / 35f, x + offsetX, y + offsetY);
 
-                    boolean isRiver = riverNoise < 0.08f;
-                    boolean isWall = ridgeNoise > 0.35f && roomNoise < 0.6f && !isRiver;
-                    boolean isDeepRiver = riverNoise < 0.03f;
+                    boolean isRiver = isRiverMap && (riverNoise < 0.055f);
+                    boolean isDeepRiver = isRiverMap && (riverNoise < 0.020f);
+                    boolean isLake = isLakeMap && (lakeNoise > 0.55f);
+                    boolean isDeepLake = isLakeMap && (lakeNoise > 0.70f);
+                    boolean isWater = isRiver || isDeepRiver || isLake || isDeepLake;
+
+                    boolean isWall = ridgeNoise > 0.35f && roomNoise < 0.6f && !isWater;
                     
-                    if (isDeepRiver) {
+                    if (isDeepRiver || isDeepLake) {
                         tile.setFloor(biome.deepLiquid.asFloor());
-                    } else if (isRiver) {
+                    } else if (isRiver || isLake) {
                         tile.setFloor(biome.liquid.asFloor());
                     } else {
                         // Floor variation
@@ -382,8 +429,6 @@ public class ProceduralGenerator {
                         if (floorNoise > 0.6f) tile.setFloor(biome.altFloor.asFloor());
                         else tile.setFloor(biome.baseFloor.asFloor());
                     }
-
-                    boolean isWater = tile.floor() == biome.deepLiquid || tile.floor() == biome.shallowLiquid || tile.floor() == biome.liquid;
 
                     if (isWall) {
                         tile.setBlock(biome.wall);
@@ -419,17 +464,20 @@ public class ProceduralGenerator {
                     Tile tile = new Tile(x, y, biome.baseFloor.id, Blocks.air.id, Blocks.air.id);
                     tiles.set(x, y, tile);
 
-                    // Smoother, larger scale noise
-                    float elevation = Simplex.noise2d(0, 3, 0.5f, 1f / 80f, x + offsetX, y + offsetY);
-                    float moisture = Simplex.noise2d(4, 3, 0.5f, 1f / 70f, x + offsetX, y + offsetY);
+                    float riverNoise = Math.abs(Simplex.noise3d(2, 2, 0.5f, 1f / 90f, x + offsetX, y + offsetY, 0f));
+                    float lakeNoise = Simplex.noise2d(6, 3, 0.5f, 1f / 35f, x + offsetX, y + offsetY);
 
-                    if (elevation < -0.25f) {
-                        if (moisture > 0.3f) tile.setFloor(biome.deepLiquid.asFloor());
-                        else tile.setFloor(biome.shallowLiquid.asFloor());
-                    } else if (elevation < 0.1f) {
-                        if (moisture > 0.55f) tile.setFloor(biome.altFloor.asFloor());
-                        else tile.setFloor(biome.liquid.asFloor()); // Transition zone
+                    boolean isRiver = isRiverMap && (riverNoise < 0.055f);
+                    boolean isDeepRiver = isRiverMap && (riverNoise < 0.020f);
+                    boolean isLake = isLakeMap && (lakeNoise > 0.55f);
+                    boolean isDeepLake = isLakeMap && (lakeNoise > 0.70f);
+
+                    if (isDeepRiver || isDeepLake) {
+                        tile.setFloor(biome.deepLiquid.asFloor());
+                    } else if (isRiver || isLake) {
+                        tile.setFloor(biome.liquid.asFloor());
                     } else {
+                        float moisture = Simplex.noise2d(4, 3, 0.5f, 1f / 70f, x + offsetX, y + offsetY);
                         if (moisture > 0.55f) tile.setFloor(biome.altFloor.asFloor());
                         else tile.setFloor(biome.baseFloor.asFloor());
                     }
@@ -546,10 +594,6 @@ public class ProceduralGenerator {
                         t.setBlock(Blocks.air);
                         if (t.overlay() != Blocks.spawn && (t.overlay() == null || t.overlay().itemDrop == null)) {
                             t.setOverlay(Blocks.air);
-                        }
-                        // Make sure the floor is solid so cores/buildings don't explode on liquid
-                        if (t.floor().isLiquid) {
-                            t.setFloor(Blocks.stone.asFloor());
                         }
                     }
                 }
@@ -672,6 +716,33 @@ public class ProceduralGenerator {
             int finalY = (int)(py + perpY * wiggle);
             
             clearArea(tiles, finalX, finalY, width);
+            spawnPathOres(tiles, finalX, finalY, width, offsetX, offsetY);
+        }
+    }
+
+    private static void spawnPathOres(Tiles tiles, int cx, int cy, int radius, float offsetX, float offsetY) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                if (dx * dx + dy * dy <= radius * radius) {
+                    Tile t = tiles.get(cx + dx, cy + dy);
+                    if (t != null && t.block() == Blocks.air && !t.floor().isLiquid && t.overlay() == Blocks.air) {
+                        float x = t.x, y = t.y;
+                        float copperNoise = Simplex.noise2d(10, 2, 0.5f, 1f / 20f, x + offsetX, y + offsetY);
+                        float leadNoise = Simplex.noise2d(11, 2, 0.5f, 1f / 20f, x + offsetX, y + offsetY);
+                        float coalNoise = Simplex.noise2d(12, 2, 0.5f, 1f / 25f, x + offsetX, y + offsetY);
+                        float scrapNoise = Simplex.noise2d(13, 2, 0.5f, 1f / 25f, x + offsetX, y + offsetY);
+                        float titaniumNoise = Simplex.noise2d(14, 2, 0.5f, 1f / 22f, x + offsetX, y + offsetY);
+                        float thoriumNoise = Simplex.noise2d(15, 2, 0.5f, 1f / 22f, x + offsetX, y + offsetY);
+
+                        if (copperNoise > 0.72f) t.setOverlay(Blocks.oreCopper);
+                        else if (leadNoise > 0.72f) t.setOverlay(Blocks.oreLead);
+                        else if (coalNoise > 0.74f) t.setOverlay(Blocks.oreCoal);
+                        else if (scrapNoise > 0.74f) t.setOverlay(Blocks.oreScrap);
+                        else if (titaniumNoise > 0.74f) t.setOverlay(Blocks.oreTitanium);
+                        else if (thoriumNoise > 0.74f) t.setOverlay(Blocks.oreThorium);
+                    }
+                }
+            }
         }
     }
 
@@ -681,21 +752,15 @@ public class ProceduralGenerator {
         
         if (diff == Difficulty.Easy) {
             placeBlock(tiles, ex, ey, Blocks.coreShard, Team.crux);
-            placeBlock(tiles, ex + 2, ey, Blocks.unloader, Team.crux);
-            placeBlock(tiles, ex + 3, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 3, 3, Blocks.duo, true);
             buildRing(tiles, ex, ey, 6, 6, Blocks.copperWallLarge, false);
         } else if (diff == Difficulty.Normal) {
             placeBlock(tiles, ex, ey, Blocks.coreFoundation, Team.crux);
-            placeBlock(tiles, ex + 3, ey, Blocks.unloader, Team.crux);
-            placeBlock(tiles, ex + 4, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 4, 4, Blocks.lancer, true);
             buildRing(tiles, ex, ey, 4, 2, Blocks.scatter, true);
             buildRing(tiles, ex, ey, 7, 7, Blocks.titaniumWallLarge, false);
         } else {
             placeBlock(tiles, ex, ey, Blocks.coreNucleus, Team.crux);
-            placeBlock(tiles, ex + 3, ey, Blocks.unloader, Team.crux);
-            placeBlock(tiles, ex + 4, ey, Blocks.incinerator, Team.crux);
             buildRing(tiles, ex, ey, 5, 5, Blocks.ripple, true);
             buildRing(tiles, ex, ey, 5, 2, Blocks.salvo, true);
             buildRing(tiles, ex, ey, 8, 8, Blocks.thoriumWallLarge, false);
@@ -732,17 +797,156 @@ public class ProceduralGenerator {
         }
     }
 
+    private static boolean checkMapHasWater() {
+        if (Vars.world == null || Vars.world.tiles == null) return false;
+        int w = Vars.world.width(), h = Vars.world.height();
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                Tile t = Vars.world.tile(x, y);
+                if (t != null && t.floor() != null && t.floor().isLiquid) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean checkGroundPathExists(int sx, int sy, int cx, int cy) {
+        if (Vars.world == null || Vars.world.tiles == null || sx < 0 || sy < 0) return true;
+        int w = Vars.world.width(), h = Vars.world.height();
+        boolean[][] visited = new boolean[w][h];
+        arc.struct.IntSeq queue = new arc.struct.IntSeq();
+
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                int nx = sx + dx, ny = sy + dy;
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                    visited[nx][ny] = true;
+                    queue.add(nx + ny * w);
+                }
+            }
+        }
+
+        while (queue.size > 0) {
+            int pos = queue.pop();
+            int x = pos % w;
+            int y = pos / w;
+
+            if (Mathf.dst(x, y, cx, cy) <= 14) return true;
+
+            int[] dxs = {1, -1, 0, 0};
+            int[] dys = {0, 0, 1, -1};
+
+            for (int i = 0; i < 4; i++) {
+                int nx = x + dxs[i];
+                int ny = y + dys[i];
+
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[nx][ny]) {
+                    Tile t = Vars.world.tile(nx, ny);
+                    if (t != null && !t.block().solid && (t.floor() == null || !t.floor().isDeep())) {
+                        visited[nx][ny] = true;
+                        queue.add(nx + ny * w);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean checkNavalPathExists(int sx, int sy, int cx, int cy) {
+        if (Vars.world == null || Vars.world.tiles == null || sx < 0 || sy < 0) return false;
+        int w = Vars.world.width(), h = Vars.world.height();
+        boolean[][] visited = new boolean[w][h];
+        arc.struct.IntSeq queue = new arc.struct.IntSeq();
+
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                int nx = sx + dx, ny = sy + dy;
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                    visited[nx][ny] = true;
+                    queue.add(nx + ny * w);
+                }
+            }
+        }
+
+        while (queue.size > 0) {
+            int pos = queue.pop();
+            int x = pos % w;
+            int y = pos / w;
+
+            if (Mathf.dst(x, y, cx, cy) <= 16) return true;
+
+            int[] dxs = {1, -1, 0, 0};
+            int[] dys = {0, 0, 1, -1};
+
+            for (int i = 0; i < 4; i++) {
+                int nx = x + dxs[i];
+                int ny = y + dys[i];
+
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[nx][ny]) {
+                    Tile t = Vars.world.tile(nx, ny);
+                    if (t != null && t.floor() != null && t.floor().isLiquid) {
+                        visited[nx][ny] = true;
+                        queue.add(nx + ny * w);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static void setupRules(Rules rules, GameMode mode, Difficulty difficulty, TDMode tdMode) {
         rules.waves = true;
         rules.waveTimer = true;
         rules.winWave = (mode == GameMode.TowerDefense && tdMode == TDMode.Limit) ? 100 : 0;
+        rules.coreIncinerates = true;
+
+        // Configure enemy Crux team rules and starting core loadout resources
+        mindustry.game.Rules.TeamRule cruxRule = rules.teams.get(Team.crux);
+        cruxRule.unitDamageMultiplier = 1.0f;
+        cruxRule.unitHealthMultiplier = 1.0f;
+        cruxRule.infiniteResources = false;
+
+        // Player starting loadout (1k Copper & Lead, 100 Silicon & Graphite)
+        rules.loadout.clear();
+        rules.loadout.addAll(mindustry.type.ItemStack.with(
+            Items.copper, 1000,
+            Items.lead, 1000,
+            Items.silicon, 100,
+            Items.graphite, 100
+        ));
+
+        // Analyze map terrain & path connections to determine unit types
+        int cx = -1, cy = -1, sx = -1, sy = -1;
+        if (Vars.world != null && Vars.world.tiles != null) {
+            for (int x = 0; x < Vars.world.width(); x++) {
+                for (int y = 0; y < Vars.world.height(); y++) {
+                    Tile t = Vars.world.tile(x, y);
+                    if (t != null) {
+                        if (t.team() == Team.sharded && t.block() instanceof mindustry.world.blocks.storage.CoreBlock) {
+                            cx = x; cy = y;
+                        } else if (t.overlay() == Blocks.spawn || (t.team() == Team.crux && t.block() instanceof mindustry.world.blocks.storage.CoreBlock)) {
+                            sx = x; sy = y;
+                        }
+                    }
+                }
+            }
+        }
+
+        boolean hasWater = checkMapHasWater();
+        boolean hasGroundPath = checkGroundPathExists(sx, sy, cx, cy);
+        boolean hasNavalPath = checkNavalPathExists(sx, sy, cx, cy);
+
+        boolean isDryMap = !hasWater;
+        boolean isNavalMap = hasNavalPath;
+        boolean isAirOnlyMap = hasWater && !hasGroundPath && !hasNavalPath;
 
         switch (mode) {
             case Attack:
                 rules.attackMode = true;
                 rules.winWave = 0; // No max win wave for Attack mode!
-                rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
-                rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 18000f : (difficulty == Difficulty.Normal ? 21600f : 25200f); // Increased initial grace period to prepare!
+                rules.waveSpacing = difficulty == Difficulty.Hard ? 7200f : (difficulty == Difficulty.Normal ? 9000f : 10800f);
+                rules.initialWaveSpacing = 36000f; // 10 minutes initial grace period to mine and prepare!
                 break;
             case Sandbox:
                 rules.waves = false;
@@ -750,10 +954,12 @@ public class ProceduralGenerator {
                 rules.infiniteResources = true;
                 break;
             case TowerDefense:
-                rules.waveSpacing = difficulty == Difficulty.Hard ? 4200f : (difficulty == Difficulty.Normal ? 5400f : 7200f);
+                rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
+                rules.initialWaveSpacing = 36000f;
                 break;
             case Survival:
                 rules.waveSpacing = 7200f;
+                rules.initialWaveSpacing = 36000f;
                 break;
         }
 
@@ -768,8 +974,8 @@ public class ProceduralGenerator {
                 break;
             case Hard:
                 rules.dropZoneRadius = mode == GameMode.TowerDefense ? 25f : 100f;
-                rules.buildCostMultiplier = 1.5f;
-                rules.blockHealthMultiplier = 0.8f;
+                rules.buildCostMultiplier = 1.0f;
+                rules.blockHealthMultiplier = 1.0f;
                 break;
         }
 
@@ -783,7 +989,7 @@ public class ProceduralGenerator {
             rules.waves = true;
             rules.waveTimer = true;
             rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
-            rules.initialWaveSpacing = difficulty == Difficulty.Hard ? 18000f : (difficulty == Difficulty.Normal ? 21600f : 25200f);
+            rules.initialWaveSpacing = 36000f; // 10 minutes prep time before Wave 1
             rules.spawns.clear();
 
             if (tdMode == TDMode.Limit) {
@@ -792,42 +998,103 @@ public class ProceduralGenerator {
                 rules.winWave = 0; // Endless waves!
             }
 
-            // Early waves: small scouting parties only
-            SpawnGroup g1 = new SpawnGroup(UnitTypes.dagger);
-            g1.begin = 1; g1.end = 15; g1.unitAmount = 2; g1.unitScaling = 0.5f;
-            rules.spawns.add(g1);
+            // GROUND UNITS: Add if dry map OR valid ground path exists
+            if (isDryMap || hasGroundPath) {
+                SpawnGroup g1 = new SpawnGroup(UnitTypes.dagger);
+                g1.begin = 1; g1.end = 25; g1.unitAmount = 2; g1.unitScaling = 0.3f;
+                rules.spawns.add(g1);
 
-            SpawnGroup g2 = new SpawnGroup(UnitTypes.crawler);
-            g2.begin = 5; g2.end = 25; g2.unitAmount = 3; g2.unitScaling = 0.8f;
-            rules.spawns.add(g2);
+                SpawnGroup g2 = new SpawnGroup(UnitTypes.crawler);
+                g2.begin = 5; g2.end = 30; g2.unitAmount = 3; g2.unitScaling = 0.4f;
+                rules.spawns.add(g2);
 
-            SpawnGroup g3 = new SpawnGroup(UnitTypes.mace);
-            g3.begin = 15; g3.end = 50; g3.unitAmount = 2; g3.unitScaling = 0.5f;
-            rules.spawns.add(g3);
+                SpawnGroup g3 = new SpawnGroup(UnitTypes.mace);
+                g3.begin = 20; g3.end = 45; g3.unitAmount = 2; g3.unitScaling = 0.3f;
+                rules.spawns.add(g3);
 
-            SpawnGroup g4 = new SpawnGroup(UnitTypes.fortress);
-            g4.begin = 30; g4.end = 70; g4.unitAmount = 1; g4.unitScaling = 0.3f;
-            rules.spawns.add(g4);
+                SpawnGroup g4 = new SpawnGroup(UnitTypes.fortress);
+                g4.begin = 36; g4.end = 70; g4.unitAmount = 1; g4.unitScaling = 0.3f;
+                rules.spawns.add(g4);
 
-            SpawnGroup g5 = new SpawnGroup(UnitTypes.spiroct);
-            g5.begin = 40; g5.end = 80; g5.unitAmount = 2; g5.unitScaling = 0.4f;
-            rules.spawns.add(g5);
+                SpawnGroup g5 = new SpawnGroup(UnitTypes.spiroct);
+                g5.begin = 40; g5.end = 80; g5.unitAmount = 2; g5.unitScaling = 0.3f;
+                rules.spawns.add(g5);
 
-            SpawnGroup g6 = new SpawnGroup(UnitTypes.scepter);
-            g6.begin = 55; g6.end = 99999; g6.unitAmount = 1; g6.unitScaling = 0.3f;
-            rules.spawns.add(g6);
+                SpawnGroup g6 = new SpawnGroup(UnitTypes.scepter);
+                g6.begin = 61; g6.end = 99999; g6.unitAmount = 1; g6.unitScaling = 0.2f;
+                rules.spawns.add(g6);
 
-            SpawnGroup g7 = new SpawnGroup(UnitTypes.reign);
-            g7.begin = 75; g7.end = 99999; g7.unitAmount = 1; g7.unitScaling = 0.3f;
-            rules.spawns.add(g7);
+                SpawnGroup g7 = new SpawnGroup(UnitTypes.reign);
+                g7.begin = 75; g7.end = 99999; g7.unitAmount = 1; g7.unitScaling = 0.2f;
+                rules.spawns.add(g7);
 
-            SpawnGroup g8 = new SpawnGroup(UnitTypes.toxopid);
-            g8.begin = 85; g8.end = 99999; g8.unitAmount = 1; g8.unitScaling = 0.3f;
-            rules.spawns.add(g8);
+                SpawnGroup g8 = new SpawnGroup(UnitTypes.toxopid);
+                g8.begin = 85; g8.end = 99999; g8.unitAmount = 1; g8.unitScaling = 0.2f;
+                rules.spawns.add(g8);
+            }
+
+            // NAVAL SHIP UNITS: Add if continuous water route connects enemy to player core
+            if (isNavalMap) {
+                SpawnGroup ns1 = new SpawnGroup(UnitTypes.risso);
+                ns1.begin = 5; ns1.end = 35; ns1.unitAmount = 2; ns1.unitScaling = 0.4f;
+                rules.spawns.add(ns1);
+
+                SpawnGroup ns2 = new SpawnGroup(UnitTypes.retusa);
+                ns2.begin = 10; ns2.end = 40; ns2.unitAmount = 1; ns2.unitScaling = 0.3f;
+                rules.spawns.add(ns2);
+
+                SpawnGroup ns3 = new SpawnGroup(UnitTypes.minke);
+                ns3.begin = 20; ns3.end = 60; ns3.unitAmount = 2; ns3.unitScaling = 0.4f;
+                rules.spawns.add(ns3);
+
+                SpawnGroup ns4 = new SpawnGroup(UnitTypes.oxynoe);
+                ns4.begin = 25; ns4.end = 65; ns4.unitAmount = 1; ns4.unitScaling = 0.3f;
+                rules.spawns.add(ns4);
+
+                SpawnGroup ns5 = new SpawnGroup(UnitTypes.bryde);
+                ns5.begin = 36; ns5.end = 80; ns5.unitAmount = 1; ns5.unitScaling = 0.3f;
+                rules.spawns.add(ns5);
+
+                SpawnGroup ns6 = new SpawnGroup(UnitTypes.aegires);
+                ns6.begin = 40; ns6.end = 85; ns6.unitAmount = 1; ns6.unitScaling = 0.3f;
+                rules.spawns.add(ns6);
+
+                SpawnGroup ns7 = new SpawnGroup(UnitTypes.sei);
+                ns7.begin = 61; ns7.end = 99999; ns7.unitAmount = 1; ns7.unitScaling = 0.2f;
+                rules.spawns.add(ns7);
+
+                SpawnGroup ns8 = new SpawnGroup(UnitTypes.omura);
+                ns8.begin = 85; ns8.end = 99999; ns8.unitAmount = 1; ns8.unitScaling = 0.2f;
+                rules.spawns.add(ns8);
+            }
+
+            // FLYING AIR UNITS: Add if water blocks ground path, or on naval maps
+            if (isAirOnlyMap || isNavalMap || !hasGroundPath) {
+                SpawnGroup a1 = new SpawnGroup(UnitTypes.flare);
+                a1.begin = 5; a1.end = 35; a1.unitAmount = 2; a1.unitScaling = 0.4f;
+                rules.spawns.add(a1);
+
+                SpawnGroup a2 = new SpawnGroup(UnitTypes.horizon);
+                a2.begin = 20; a2.end = 60; a2.unitAmount = 2; a2.unitScaling = 0.4f;
+                rules.spawns.add(a2);
+
+                SpawnGroup a3 = new SpawnGroup(UnitTypes.zenith);
+                a3.begin = 36; a3.end = 80; a3.unitAmount = 1; a3.unitScaling = 0.3f;
+                rules.spawns.add(a3);
+
+                SpawnGroup a4 = new SpawnGroup(UnitTypes.antumbra);
+                a4.begin = 61; a4.end = 99999; a4.unitAmount = 1; a4.unitScaling = 0.2f;
+                rules.spawns.add(a4);
+
+                SpawnGroup a5 = new SpawnGroup(UnitTypes.eclipse);
+                a5.begin = 85; a5.end = 99999; a5.unitAmount = 1; a5.unitScaling = 0.2f;
+                rules.spawns.add(a5);
+            }
         } else if (mode == GameMode.TowerDefense) {
             rules.waves = true;
             rules.waveTimer = true;
-            rules.waveSpacing = difficulty == Difficulty.Hard ? 4200f : (difficulty == Difficulty.Normal ? 5400f : 7200f);
+            rules.waveSpacing = difficulty == Difficulty.Hard ? 5400f : (difficulty == Difficulty.Normal ? 7200f : 9000f);
+            rules.initialWaveSpacing = 36000f;
             rules.spawns.clear();
 
             if (tdMode == TDMode.Limit) {
@@ -838,120 +1105,148 @@ public class ProceduralGenerator {
 
             int stage5End = (tdMode == TDMode.Limit) ? 100 : 99999;
 
-            // Stage 1 (Easy: Waves 1-15) - T1 Crawlers
+            // Stage 1 (Waves 1-15) - Gentle T1 Crawlers
             SpawnGroup g1 = new SpawnGroup(UnitTypes.crawler);
-            g1.begin = 1; g1.end = 15; g1.unitAmount = 5; g1.unitScaling = 2f;
+            g1.begin = 1; g1.end = 15; g1.unitAmount = 3; g1.unitScaling = 1f;
             rules.spawns.add(g1);
 
-            // Stage 2 (Normal: Waves 16-35) - T1 & T2 Crawlers (Atrax)
+            // Stage 2 (Waves 16-35) - T1 & T2 Crawlers (Atrax)
             SpawnGroup g2 = new SpawnGroup(UnitTypes.crawler);
-            g2.begin = 16; g2.end = 35; g2.unitAmount = 8; g2.unitScaling = 2.5f;
+            g2.begin = 16; g2.end = 35; g2.unitAmount = 5; g2.unitScaling = 1.5f;
             rules.spawns.add(g2);
 
             SpawnGroup g3 = new SpawnGroup(UnitTypes.atrax);
-            g3.begin = 16; g3.end = 35; g3.unitAmount = 3; g3.unitScaling = 1.5f;
+            g3.begin = 20; g3.end = 35; g3.unitAmount = 2; g3.unitScaling = 1f;
             rules.spawns.add(g3);
 
-            // Stage 3 (Hard: Waves 36-60) - T2 & T3 Crawlers (Spiroct)
+            // Stage 3 (Waves 36-60) - T2 & T3 Crawlers (Spiroct)
             SpawnGroup g4 = new SpawnGroup(UnitTypes.atrax);
-            g4.begin = 36; g4.end = 60; g4.unitAmount = 6; g4.unitScaling = 2f;
+            g4.begin = 36; g4.end = 60; g4.unitAmount = 4; g4.unitScaling = 1.5f;
             rules.spawns.add(g4);
 
             SpawnGroup g5 = new SpawnGroup(UnitTypes.spiroct);
-            g5.begin = 36; g5.end = 60; g5.unitAmount = 3; g5.unitScaling = 1f;
+            g5.begin = 40; g5.end = 60; g5.unitAmount = 2; g5.unitScaling = 0.8f;
             rules.spawns.add(g5);
 
-            // Stage 4 (Extreme: Waves 61-89) - T3 & T4 Crawlers (Arkyid)
+            // Stage 4 (Waves 61-89) - T3 & T4 Crawlers (Arkyid)
             SpawnGroup g6 = new SpawnGroup(UnitTypes.spiroct);
-            g6.begin = 61; g6.end = 89; g6.unitAmount = 6; g6.unitScaling = 1.5f;
+            g6.begin = 61; g6.end = 89; g6.unitAmount = 4; g6.unitScaling = 1f;
             rules.spawns.add(g6);
 
             SpawnGroup g7 = new SpawnGroup(UnitTypes.arkyid);
-            g7.begin = 61; g7.end = 89; g7.unitAmount = 2; g7.unitScaling = 0.8f;
+            g7.begin = 65; g7.end = 89; g7.unitAmount = 1; g7.unitScaling = 0.5f;
             rules.spawns.add(g7);
 
-            // Stage 5 (Eradication: Waves 90+) - T4 & T5 Crawlers (Toxopid)
+            // Stage 5 (Waves 90+) - T4 & T5 Crawlers (Toxopid)
             SpawnGroup g8 = new SpawnGroup(UnitTypes.arkyid);
-            g8.begin = 90; g8.end = stage5End; g8.unitAmount = 4; g8.unitScaling = 1.2f;
+            g8.begin = 90; g8.end = stage5End; g8.unitAmount = 3; g8.unitScaling = 1f;
             rules.spawns.add(g8);
 
             SpawnGroup g9 = new SpawnGroup(UnitTypes.toxopid);
-            g9.begin = 90; g9.end = stage5End; g9.unitAmount = 1; g9.unitScaling = 0.5f;
+            g9.begin = 90; g9.end = stage5End; g9.unitAmount = 1; g9.unitScaling = 0.3f;
             rules.spawns.add(g9);
         } else if (rules.waves) {
             rules.spawns.clear();
 
-            // Tier 1 Ground
+            // Tier 1 Ground (Waves 1-35)
             SpawnGroup g1 = new SpawnGroup(UnitTypes.dagger);
             g1.begin = 1;
-            g1.end = 30;
-            g1.unitAmount = 3;
-            g1.unitScaling = 1.5f;
+            g1.end = 35;
+            g1.unitAmount = 2;
+            g1.unitScaling = 0.8f;
             rules.spawns.add(g1);
 
             SpawnGroup g2 = new SpawnGroup(UnitTypes.crawler);
-            g2.begin = 3;
-            g2.end = 40;
-            g2.unitAmount = 4;
-            g2.unitScaling = 2f;
+            g2.begin = 5;
+            g2.end = 35;
+            g2.unitAmount = 3;
+            g2.unitScaling = 1f;
             rules.spawns.add(g2);
 
-            // Tier 1 Air
+            // Tier 1 Air (Waves 5-35)
             SpawnGroup g3 = new SpawnGroup(UnitTypes.flare);
-            g3.begin = 2;
+            g3.begin = 5;
             g3.end = 35;
             g3.unitAmount = 2;
-            g3.unitScaling = 1.2f;
+            g3.unitScaling = 0.8f;
             rules.spawns.add(g3);
 
-            // Tier 2 Ground & Legs
+            // Tier 1 Naval Ships (Waves 5-35)
+            SpawnGroup ns1 = new SpawnGroup(UnitTypes.risso);
+            ns1.begin = 5;
+            ns1.end = 35;
+            ns1.unitAmount = 2;
+            ns1.unitScaling = 0.8f;
+            rules.spawns.add(ns1);
+
+            // Tier 2 Ground (Waves 25-60)
             SpawnGroup g4 = new SpawnGroup(UnitTypes.mace);
-            g4.begin = 8;
+            g4.begin = 25;
             g4.end = 60;
             g4.unitAmount = 2;
-            g4.unitScaling = 1f;
+            g4.unitScaling = 0.5f;
             rules.spawns.add(g4);
 
             SpawnGroup g5 = new SpawnGroup(UnitTypes.atrax);
-            g5.begin = 10;
+            g5.begin = 25;
             g5.end = 60;
             g5.unitAmount = 2;
-            g5.unitScaling = 1f;
+            g5.unitScaling = 0.5f;
             rules.spawns.add(g5);
 
-            // Tier 2 Air
+            // Tier 2 Air (Waves 25-60)
             SpawnGroup g6 = new SpawnGroup(UnitTypes.horizon);
-            g6.begin = 12;
+            g6.begin = 25;
             g6.end = 60;
             g6.unitAmount = 2;
-            g6.unitScaling = 1f;
+            g6.unitScaling = 0.5f;
             rules.spawns.add(g6);
 
-            // Tier 3 Heavy (Normal / Hard)
-            if (difficulty != Difficulty.Easy) {
-                SpawnGroup g7 = new SpawnGroup(UnitTypes.fortress);
-                g7.begin = 18;
-                g7.end = 100;
-                g7.unitAmount = 1;
-                g7.unitScaling = 0.5f;
-                rules.spawns.add(g7);
+            // Tier 2 Naval Ships (Waves 25-60)
+            SpawnGroup ns2 = new SpawnGroup(UnitTypes.minke);
+            ns2.begin = 25;
+            ns2.end = 60;
+            ns2.unitAmount = 2;
+            ns2.unitScaling = 0.5f;
+            rules.spawns.add(ns2);
 
-                SpawnGroup g8 = new SpawnGroup(UnitTypes.zenith);
-                g8.begin = 20;
-                g8.end = 100;
-                g8.unitAmount = 1;
-                g8.unitScaling = 0.5f;
-                rules.spawns.add(g8);
-            }
+            // Tier 3 Heavy (Waves 36+)
+            SpawnGroup g7 = new SpawnGroup(UnitTypes.fortress);
+            g7.begin = 36;
+            g7.end = 100;
+            g7.unitAmount = 1;
+            g7.unitScaling = 0.3f;
+            rules.spawns.add(g7);
 
-            // Tier 4 Boss (Hard)
+            SpawnGroup g8 = new SpawnGroup(UnitTypes.zenith);
+            g8.begin = 40;
+            g8.end = 100;
+            g8.unitAmount = 1;
+            g8.unitScaling = 0.3f;
+            rules.spawns.add(g8);
+
+            SpawnGroup ns3 = new SpawnGroup(UnitTypes.bryde);
+            ns3.begin = 36;
+            ns3.end = 100;
+            ns3.unitAmount = 1;
+            ns3.unitScaling = 0.3f;
+            rules.spawns.add(ns3);
+
+            // Tier 4 Boss (Waves 61+)
             if (difficulty == Difficulty.Hard) {
                 SpawnGroup g9 = new SpawnGroup(UnitTypes.scepter);
-                g9.begin = 30;
+                g9.begin = 61;
                 g9.end = 100;
                 g9.unitAmount = 1;
                 g9.unitScaling = 0.2f;
                 rules.spawns.add(g9);
+
+                SpawnGroup ns4 = new SpawnGroup(UnitTypes.sei);
+                ns4.begin = 61;
+                ns4.end = 100;
+                ns4.unitAmount = 1;
+                ns4.unitScaling = 0.2f;
+                rules.spawns.add(ns4);
             }
         }
     }
